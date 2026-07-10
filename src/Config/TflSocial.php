@@ -49,6 +49,7 @@ class TflSocial extends BaseConfig
     ];
 
     public array $http = [
+        'baseUrl' => '',
         'timeout' => 30,
         'connectTimeout' => 10,
         'verifySSL' => true,
@@ -67,7 +68,9 @@ class TflSocial extends BaseConfig
 
     public function __construct()
     {
-        parent::__construct();
+        if (method_exists(BaseConfig::class, '__construct')) {
+            parent::__construct();
+        }
 
         $this->providers['facebook']['appId'] = $this->readEnvironment('facebook.appId');
         $this->providers['facebook']['appSecret'] = $this->readEnvironment('facebook.appSecret');
