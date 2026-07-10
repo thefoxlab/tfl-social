@@ -6,5 +6,6 @@ $vendorDir = dirname(__DIR__);
 $baseDir = dirname($vendorDir);
 
 return array(
+    'TheFoxLab\\TflSocial\\Tests\\' => array($baseDir . '/tests'),
     'TheFoxLab\\TflSocial\\' => array($baseDir . '/src'),
 );

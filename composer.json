@@ -1,36 +1,35 @@
 {
-    "name": "thefoxlab/tfl-social",
-    "description": "Provider-based social media aggregation library for Facebook Pages and Instagram Business.",
-    "type": "library",
-    "license": "MIT",
-    "keywords": [
-        "codeigniter",
-        "facebook",
-        "instagram",
-        "social",
-        "meta",
-        "graph-api"
-    ],
-    "homepage": "https://thefoxlab.com",
-    "authors": [
-        {
-            "name": "TheFoxLab",
-            "homepage": "https://thefoxlab.com"
-        }
-    ],
-    "require": {
-        "php": "^8.2"
-    },
-    "autoload": {
-        "psr-4": {
-            "TheFoxLab\\TflSocial\\": "src/"
-        }
-    },
-    "autoload-dev": {
-        "psr-4": {
-            "TheFoxLab\\TflSocial\\Tests\\": "tests/"
-        }
-    },
-    "minimum-stability": "stable",
-    "prefer-stable": true
+	"name" : "thefoxlab/tfl-social",
+	"description" : "Provider-based social media aggregation library for Facebook Pages and Instagram Business.",
+	"type" : "library",
+	"license" : "MIT",
+	"keywords" : [
+		"codeigniter",
+		"facebook",
+		"instagram",
+		"social",
+		"meta",
+		"graph-api"
+	],
+	"homepage" : "https://thefoxlab.com",
+	"authors" : [{
+			"name" : "TheFoxLab",
+			"homepage" : "https://thefoxlab.com"
+		}
+	],
+	"require" : {
+		"php" : "^8.2"
+	},
+	"autoload" : {
+		"psr-4" : {
+			"TheFoxLab\\TflSocial\\" : "src/"
+		}
+	},
+	"autoload-dev" : {
+		"psr-4" : {
+			"TheFoxLab\\TflSocial\\Tests\\" : "tests/"
+		}
+	},
+	"minimum-stability" : "stable",
+	"prefer-stable" : true
 }

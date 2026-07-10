@@ -7,14 +7,19 @@ namespace Composer\Autoload;
 class ComposerStaticInitcaa40c067ec4439b964c4edb78aeb22d
 {
     public static $prefixLengthsPsr4 = array (
-        'T' => 
+        'T' =>
         array (
+            'TheFoxLab\\TflSocial\\Tests\\' => 26,
             'TheFoxLab\\TflSocial\\' => 20,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'TheFoxLab\\TflSocial\\' => 
+        'TheFoxLab\\TflSocial\\Tests\\' =>
+        array (
+            0 => __DIR__ . '/../..' . '/tests',
+        ),
+        'TheFoxLab\\TflSocial\\' =>
         array (
             0 => __DIR__ . '/../..' . '/src',
         ),
