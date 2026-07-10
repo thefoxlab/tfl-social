@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace TheFoxLab\TflSocial\Providers\Instagram;
 
 use TheFoxLab\TflSocial\Config\TflSocial;
+use TheFoxLab\TflSocial\Http\Client;
 use TheFoxLab\TflSocial\Http\ClientInterface;
-use TheFoxLab\TflSocial\Http\Factory;
 
 use function bin2hex;
 use function hash_equals;
@@ -27,7 +27,7 @@ final class OAuth
         private readonly TflSocial $config = new TflSocial(),
         ?ClientInterface $client = null
     ) {
-        $this->client = $client ?? Factory::create($this->config);
+        $this->client = $client ?? new Client($this->config);
     }
 
     private readonly ClientInterface $client;

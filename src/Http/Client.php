@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace TheFoxLab\TflSocial\Http;
 
-use CodeIgniter\HTTP\CURLRequest;
 use CodeIgniter\HTTP\ResponseInterface;
 use TheFoxLab\TflSocial\Config\TflSocial;
 use Throwable;
@@ -21,7 +20,7 @@ final class Client implements ClientInterface
      */
     public function get(string $uri, array $options = []): Response
     {
-        return $this->send(Request::fromArray('GET', $uri, $options));
+        return $this->request('GET', $uri, $options);
     }
 
     /**
@@ -29,7 +28,7 @@ final class Client implements ClientInterface
      */
     public function post(string $uri, array $options = []): Response
     {
-        return $this->send(Request::fromArray('POST', $uri, $options));
+        return $this->request('POST', $uri, $options);
     }
 
     /**
@@ -37,7 +36,7 @@ final class Client implements ClientInterface
      */
     public function put(string $uri, array $options = []): Response
     {
-        return $this->send(Request::fromArray('PUT', $uri, $options));
+        return $this->request('PUT', $uri, $options);
     }
 
     /**
@@ -45,7 +44,7 @@ final class Client implements ClientInterface
      */
     public function patch(string $uri, array $options = []): Response
     {
-        return $this->send(Request::fromArray('PATCH', $uri, $options));
+        return $this->request('PATCH', $uri, $options);
     }
 
     /**
@@ -53,108 +52,105 @@ final class Client implements ClientInterface
      */
     public function delete(string $uri, array $options = []): Response
     {
-        return $this->send(Request::fromArray('DELETE', $uri, $options));
-    }
-
-    public function send(Request $request): Response
-    {
-        try {
-            $response = $this->curlRequest()->request(
-                $request->method(),
-                $this->resolveUri($request),
-                $this->buildOptions($request)
-            );
-        } catch (Throwable $exception) {
-            throw HttpException::transport($exception->getMessage(), $exception);
-        }
-
-        return $this->buildResponse($response);
-    }
-
-    private function curlRequest(): CURLRequest
-    {
-        $services = '\\Config\\Services';
-
-        if (! class_exists($services) || ! method_exists($services, 'curlrequest')) {
-            throw HttpException::configuration('CodeIgniter CURLRequest service is not available.');
-        }
-
-        $request = $services::curlrequest([], false);
-
-        if (! $request instanceof CURLRequest) {
-            throw HttpException::configuration('CodeIgniter CURLRequest service returned an invalid client.');
-        }
-
-        return $request;
+        return $this->request('DELETE', $uri, $options);
     }
 
     /**
+     * @param array<string, mixed> $options
+     */
+    public function request(string $method, string $uri, array $options = []): Response
+    {
+        try {
+            $response = service('curlrequest', $this->baseOptions($options))
+                ->request($method, $this->resolveUri($uri, $options), $this->requestOptions($options));
+
+            return $this->buildResponse($response);
+        } catch (Throwable $exception) {
+            throw HttpException::transport($exception->getMessage(), $exception);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     *
      * @return array<string, mixed>
      */
-    private function buildOptions(Request $request): array
+    private function baseOptions(array $options): array
     {
-        $headers = $request->headers();
-        $userAgent = $request->userAgent() ?? $this->stringConfig('userAgent');
+        $baseOptions = [];
+        $timeout = $options['timeout'] ?? $this->configValue('timeout');
+        $connectTimeout = $options['connect_timeout'] ?? $options['connectTimeout'] ?? $this->configValue('connectTimeout');
+        $verify = $options['verify'] ?? $options['verify_ssl'] ?? $options['verifySsl'] ?? $this->configValue('verifySSL');
 
-        if ($request->bearerToken() !== null) {
-            $headers['Authorization'] = 'Bearer ' . $request->bearerToken();
+        if (is_int($timeout) || is_float($timeout)) {
+            $baseOptions['timeout'] = $timeout;
         }
 
-        if ($userAgent !== null) {
-            $headers['User-Agent'] = $userAgent;
+        if (is_int($connectTimeout) || is_float($connectTimeout)) {
+            $baseOptions['connect_timeout'] = $connectTimeout;
         }
 
-        $options = [
-            'headers' => $headers,
+        if (is_bool($verify)) {
+            $baseOptions['verify'] = $verify;
+        }
+
+        return $baseOptions;
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @return array<string, mixed>
+     */
+    private function requestOptions(array $options): array
+    {
+        $requestOptions = [
             'http_errors' => false,
         ];
 
-        $timeout = $request->timeout() ?? $this->floatConfig('timeout');
-        $connectTimeout = $request->connectTimeout() ?? $this->floatConfig('connectTimeout');
-        $verifySsl = $request->verifySsl() ?? $this->boolConfig('verifySSL');
+        $headers = is_array($options['headers'] ?? null) ? $options['headers'] : [];
+        $bearerToken = $options['bearer_token'] ?? $options['bearerToken'] ?? null;
+        $userAgent = $options['user_agent'] ?? $options['userAgent'] ?? $this->configValue('userAgent');
 
-        if ($timeout !== null) {
-            $options['timeout'] = $timeout;
+        if (is_string($bearerToken) && $bearerToken !== '') {
+            $headers['Authorization'] = 'Bearer ' . $bearerToken;
         }
 
-        if ($connectTimeout !== null) {
-            $options['connect_timeout'] = $connectTimeout;
+        if (is_string($userAgent) && $userAgent !== '') {
+            $headers['User-Agent'] = $userAgent;
         }
 
-        if ($verifySsl !== null) {
-            $options['verify'] = $verifySsl;
+        if ($headers !== []) {
+            $requestOptions['headers'] = $headers;
         }
 
-        if ($request->query() !== []) {
-            $options['query'] = $request->query();
+        foreach (['query', 'json', 'multipart'] as $key) {
+            if (is_array($options[$key] ?? null)) {
+                $requestOptions[$key] = $options[$key];
+            }
         }
 
-        if ($request->json() !== null) {
-            $options['json'] = $request->json();
+        $form = $options['form_params'] ?? $options['form'] ?? null;
+
+        if (is_array($form)) {
+            $requestOptions['form_params'] = $form;
         }
 
-        if ($request->form() !== null) {
-            $options['form_params'] = $request->form();
-        }
-
-        if ($request->multipart() !== null) {
-            $options['multipart'] = $request->multipart();
-        }
-
-        return $options;
+        return $requestOptions;
     }
 
-    private function resolveUri(Request $request): string
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function resolveUri(string $uri, array $options): string
     {
-        $uri = $request->uri();
-
         if (str_starts_with($uri, 'http://') || str_starts_with($uri, 'https://')) {
             return $uri;
         }
 
-        $baseUrl = $request->baseUrl() ?? $this->stringConfig('baseUrl');
+        $baseUrl = $options['base_url'] ?? $options['baseUrl'] ?? $this->configValue('baseUrl');
 
-        if ($baseUrl === null) {
+        if (! is_string($baseUrl) || $baseUrl === '') {
             return $uri;
         }
 
@@ -166,7 +162,7 @@ final class Client implements ClientInterface
         return new Response(
             statusCode: $response->getStatusCode(),
             body: (string) $response->getBody(),
-            headers: $this->normalizeHeaders($response),
+            headers: $this->headers($response),
             reason: $response->getReasonPhrase()
         );
     }
@@ -174,7 +170,7 @@ final class Client implements ClientInterface
     /**
      * @return array<string, list<string>>
      */
-    private function normalizeHeaders(ResponseInterface $response): array
+    private function headers(ResponseInterface $response): array
     {
         $headers = [];
 
@@ -197,24 +193,8 @@ final class Client implements ClientInterface
         return $headers;
     }
 
-    private function stringConfig(string $key): ?string
+    private function configValue(string $key): mixed
     {
-        $value = $this->config->http[$key] ?? null;
-
-        return is_string($value) && $value !== '' ? $value : null;
-    }
-
-    private function floatConfig(string $key): ?float
-    {
-        $value = $this->config->http[$key] ?? null;
-
-        return is_int($value) || is_float($value) ? (float) $value : null;
-    }
-
-    private function boolConfig(string $key): ?bool
-    {
-        $value = $this->config->http[$key] ?? null;
-
-        return is_bool($value) ? $value : null;
+        return $this->config->http[$key] ?? null;
     }
 }

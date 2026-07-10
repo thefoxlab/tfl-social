@@ -7,8 +7,8 @@ namespace TheFoxLab\TflSocial\Providers\Facebook;
 use DateTimeImmutable;
 use JsonException;
 use TheFoxLab\TflSocial\Config\TflSocial;
+use TheFoxLab\TflSocial\Http\Client;
 use TheFoxLab\TflSocial\Http\ClientInterface;
-use TheFoxLab\TflSocial\Http\Factory;
 use TheFoxLab\TflSocial\Http\HttpException;
 use TheFoxLab\TflSocial\Http\Response;
 use Throwable;
@@ -36,7 +36,7 @@ final class OAuth
         private readonly TflSocial $config = new TflSocial(),
         ?ClientInterface $client = null
     ) {
-        $this->client = $client ?? Factory::create($this->config);
+        $this->client = $client ?? new Client($this->config);
     }
 
     private readonly ClientInterface $client;
@@ -231,7 +231,13 @@ final class OAuth
 
     private function redirectUri(): string
     {
-        return $this->providerValue('redirectUri');
+        $redirectUri = $this->providerValue('redirectUri');
+        
+        if (filter_var($redirectUri, FILTER_VALIDATE_URL)) {
+            return $redirectUri;
+        }
+        
+        return site_url(ltrim($redirectUri, '/'));
     }
 
     private function graphVersion(): string

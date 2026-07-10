@@ -6,8 +6,8 @@ namespace TheFoxLab\TflSocial\Providers\Facebook;
 
 use JsonException;
 use TheFoxLab\TflSocial\Config\TflSocial;
+use TheFoxLab\TflSocial\Http\Client;
 use TheFoxLab\TflSocial\Http\ClientInterface;
-use TheFoxLab\TflSocial\Http\Factory;
 use TheFoxLab\TflSocial\Http\HttpException;
 use TheFoxLab\TflSocial\Http\Response;
 
@@ -24,7 +24,7 @@ final class PageService
         private readonly TflSocial $config = new TflSocial(),
         ?ClientInterface $client = null
     ) {
-        $this->client = $client ?? Factory::create($this->config);
+        $this->client = $client ?? new Client($this->config);
     }
 
     private readonly ClientInterface $client;

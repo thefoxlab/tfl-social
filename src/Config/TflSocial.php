@@ -27,19 +27,16 @@ class TflSocial extends BaseConfig
             'enabled' => true,
             'appId' => '',
             'appSecret' => '',
-            'redirectUri' => '/social/callback/facebook',
+            'redirectUri' => 'social/callback/facebook',
             'permissions' => [
-                'pages_show_list',
-                'pages_read_engagement',
-                'pages_read_user_content',
-                'business_management',
+                'public_profile'
             ],
         ],
         'instagram' => [
             'enabled' => true,
             'appId' => '',
             'appSecret' => '',
-            'redirectUri' => '/social/callback/instagram',
+            'redirectUri' => 'social/callback/instagram',
             'permissions' => [
                 'instagram_basic',
                 'instagram_manage_insights',

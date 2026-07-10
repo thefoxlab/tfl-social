@@ -7,8 +7,9 @@ namespace TheFoxLab\TflSocial;
 use InvalidArgumentException;
 use TheFoxLab\TflSocial\Config\TflSocial;
 use TheFoxLab\TflSocial\Contracts\ConnectorInterface;
+use TheFoxLab\TflSocial\Entities\Connection;
+use TheFoxLab\TflSocial\Http\Client;
 use TheFoxLab\TflSocial\Http\ClientInterface;
-use TheFoxLab\TflSocial\Http\Factory;
 use TheFoxLab\TflSocial\Providers\Facebook\OAuth as FacebookOAuth;
 use TheFoxLab\TflSocial\Providers\Facebook\OAuthResponse as FacebookOAuthResponse;
 use TheFoxLab\TflSocial\Providers\Facebook\Page;
@@ -16,7 +17,9 @@ use TheFoxLab\TflSocial\Providers\Facebook\PageCollection;
 use TheFoxLab\TflSocial\Providers\Facebook\PageService;
 use TheFoxLab\TflSocial\Providers\Instagram\OAuth as InstagramOAuth;
 use TheFoxLab\TflSocial\Providers\Instagram\OAuthResponse as InstagramOAuthResponse;
+use TheFoxLab\TflSocial\Services\ConnectionService;
 
+use function iterator_to_array;
 use function strtolower;
 use function trim;
 
@@ -26,9 +29,12 @@ final class Connector implements ConnectorInterface
 
     private ?FacebookOAuthResponse $facebookOAuthResponse = null;
 
+    private ?Connection $currentConnection = null;
+
     public function __construct(
         private ?TflSocial $config = null,
-        private ?ClientInterface $client = null
+        private ?ClientInterface $client = null,
+        private ?ConnectionService $connectionService = null
     ) {
     }
 
@@ -41,6 +47,22 @@ final class Connector implements ConnectorInterface
         }
 
         $this->provider = $provider;
+        $this->facebookOAuthResponse = null;
+        $this->currentConnection = null;
+
+        return $this;
+    }
+
+    public function accessToken(string $token): self
+    {
+        $token = trim($token);
+
+        if ($token === '') {
+            throw new InvalidArgumentException('Access token cannot be empty.');
+        }
+
+        $this->assertFacebookProvider();
+        $this->facebookOAuthResponse = new FacebookOAuthResponse(accessToken: $token);
 
         return $this;
     }
@@ -99,6 +121,59 @@ final class Connector implements ConnectorInterface
         return $this->pageService()->page($pageId, $this->facebookOAuthResponse());
     }
 
+    public function connectPage(string $pageId): Connection
+    {
+        $this->assertFacebookProvider();
+
+        $page = $this->page($pageId);
+        $this->currentConnection = $this->connectionService()->connectProvider(
+            accountId: null,
+            provider: 'facebook',
+            externalId: $page->pageId(),
+            externalName: $page->name(),
+            metadata: [
+                'category' => $page->category(),
+                'picture' => $page->picture(),
+            ],
+            accessToken: $page->accessToken(),
+            permissions: iterator_to_array($page->tasks(), false)
+        );
+
+        return $this->currentConnection;
+    }
+
+    public function disconnectPage(): Connection
+    {
+        $this->assertFacebookProvider();
+
+        $connection = $this->currentConnection();
+
+        if ($connection === null) {
+            throw new InvalidArgumentException('No current Facebook page connection is available.');
+        }
+
+        $this->currentConnection = $this->connectionService()->disconnectProvider($connection->social_connection_id);
+
+        return $this->currentConnection;
+    }
+
+    public function currentConnection(): ?Connection
+    {
+        if ($this->currentConnection === null) {
+            return null;
+        }
+
+        $connectionId = $this->currentConnection->social_connection_id;
+
+        if (! is_int($connectionId) && ! is_string($connectionId)) {
+            return $this->currentConnection;
+        }
+
+        $this->currentConnection = $this->connectionService()->getConnection($connectionId);
+
+        return $this->currentConnection;
+    }
+
     private function storeOAuthResponse(FacebookOAuthResponse|InstagramOAuthResponse $response): FacebookOAuthResponse|InstagramOAuthResponse
     {
         if ($response instanceof FacebookOAuthResponse) {
@@ -128,12 +203,17 @@ final class Connector implements ConnectorInterface
 
     private function client(): ClientInterface
     {
-        return $this->client ??= Factory::create($this->config());
+        return $this->client ??= new Client($this->config());
     }
 
     private function pageService(): PageService
     {
         return new PageService($this->config(), $this->client());
+    }
+
+    private function connectionService(): ConnectionService
+    {
+        return $this->connectionService ??= new ConnectionService();
     }
 
     private function facebookOAuthResponse(): FacebookOAuthResponse

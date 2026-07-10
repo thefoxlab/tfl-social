@@ -17,10 +17,17 @@ class ConnectionModel extends Model
 
     protected $allowedFields = [
         'social_account_id',
+        'parent_connection_id',
         'provider',
         'external_id',
-        'name',
+        'external_name',
+        'access_token',
+        'refresh_token',
+        'token_expires_at',
+        'permissions',
         'status',
+        'connected_at',
+        'last_synced_at',
         'metadata',
     ];
 

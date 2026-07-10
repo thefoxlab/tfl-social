@@ -21,4 +21,14 @@ final class ConnectionRepository extends AbstractRepository
             'external_id' => $externalId,
         ]);
     }
+
+    /**
+     * @return list<Entity>
+     */
+    public function findByParentConnectionId(int|string $connectionId): array
+    {
+        return $this->findAll([
+            'parent_connection_id' => $connectionId,
+        ]);
+    }
 }

@@ -10,8 +10,10 @@ use TheFoxLab\TflSocial\Entities\Connection;
 use TheFoxLab\TflSocial\Exceptions\RepositoryException;
 use TheFoxLab\TflSocial\Repositories\ConnectionRepository;
 
+use function date;
 use function json_decode;
 use function json_encode;
+use function sprintf;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -24,24 +26,57 @@ final class ConnectionService
 
     /**
      * @param array<string, mixed> $metadata
+     * @param list<string> $permissions
      *
      * @throws JsonException
      */
     public function connectProvider(
-        int|string $accountId,
+        int|string|null $accountId,
         string $provider,
         string $externalId,
-        ?string $name = null,
-        array $metadata = []
+        ?string $externalName = null,
+        array $metadata = [],
+        ?string $accessToken = null,
+        ?string $refreshToken = null,
+        ?string $tokenExpiresAt = null,
+        array $permissions = [],
+        int|string|null $parentConnectionId = null
     ): Connection {
-        return $this->connection($this->connections->insert([
+        $data = [
             'social_account_id' => $accountId,
+            'parent_connection_id' => $parentConnectionId,
             'provider' => $provider,
             'external_id' => $externalId,
-            'name' => $name,
+            'external_name' => $externalName,
+            'access_token' => $accessToken,
+            'refresh_token' => $refreshToken,
+            'token_expires_at' => $tokenExpiresAt,
+            'permissions' => $permissions === [] ? null : $this->encodeMetadata($permissions),
             'status' => 'active',
+            'connected_at' => $this->now(),
             'metadata' => $metadata === [] ? null : $this->encodeMetadata($metadata),
-        ]));
+        ];
+
+        $existing = $this->connections->findByProviderExternalId($provider, $externalId);
+
+        if ($existing !== null) {
+            foreach ([
+                'social_account_id',
+                'parent_connection_id',
+                'external_name',
+                'refresh_token',
+                'token_expires_at',
+                'metadata',
+            ] as $nullableField) {
+                if ($data[$nullableField] === null) {
+                    unset($data[$nullableField]);
+                }
+            }
+
+            return $this->connection($this->connections->update($existing->social_connection_id, $data));
+        }
+
+        return $this->connection($this->connections->insert($data));
     }
 
     public function disconnectProvider(int|string $connectionId): Connection
@@ -49,6 +84,21 @@ final class ConnectionService
         return $this->connection($this->connections->update($connectionId, [
             'status' => 'disconnected',
         ]));
+    }
+
+    public function disconnectProviderConnection(string $provider, string $externalId): Connection
+    {
+        $connection = $this->findProviderConnection($provider, $externalId);
+
+        if ($connection === null) {
+            throw new RepositoryException(sprintf(
+                'Connection [%s:%s] was not found.',
+                $provider,
+                $externalId
+            ));
+        }
+
+        return $this->disconnectProvider($connection->social_connection_id);
     }
 
     /**
@@ -70,17 +120,21 @@ final class ConnectionService
             throw new RepositoryException(sprintf('Connection [%s] was not found.', (string) $connectionId));
         }
 
-        $metadata = $this->decodeMetadata($connection->metadata);
-        $metadata['access_token'] = $accessToken;
-
         return $this->connection($this->connections->update($connectionId, [
-            'metadata' => $this->encodeMetadata($metadata),
+            'access_token' => $accessToken,
         ]));
     }
 
     public function getConnection(int|string $connectionId): ?Connection
     {
         $connection = $this->connections->findById($connectionId);
+
+        return $connection === null ? null : $this->connection($connection);
+    }
+
+    public function findProviderConnection(string $provider, string $externalId): ?Connection
+    {
+        $connection = $this->connections->findByProviderExternalId($provider, $externalId);
 
         return $connection === null ? null : $this->connection($connection);
     }
@@ -118,5 +172,10 @@ final class ConnectionService
         $decoded = json_decode($metadata, true, 512, JSON_THROW_ON_ERROR);
 
         return is_array($decoded) ? $decoded : [];
+    }
+
+    private function now(): string
+    {
+        return date('Y-m-d H:i:s');
     }
 }

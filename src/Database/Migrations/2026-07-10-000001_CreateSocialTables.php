@@ -80,6 +80,13 @@ class CreateSocialTables extends Migration
                 'type' => 'INT',
                 'constraint' => 10,
                 'unsigned' => true,
+                'null' => true,
+            ],
+            'parent_connection_id' => [
+                'type' => 'INT',
+                'constraint' => 10,
+                'unsigned' => true,
+                'null' => true,
             ],
             'provider' => [
                 'type' => 'VARCHAR',
@@ -89,15 +96,39 @@ class CreateSocialTables extends Migration
                 'type' => 'VARCHAR',
                 'constraint' => 191,
             ],
-            'name' => [
+            'external_name' => [
                 'type' => 'VARCHAR',
                 'constraint' => 255,
+                'null' => true,
+            ],
+            'access_token' => [
+                'type' => 'TEXT',
+                'null' => true,
+            ],
+            'refresh_token' => [
+                'type' => 'TEXT',
+                'null' => true,
+            ],
+            'token_expires_at' => [
+                'type' => 'DATETIME',
+                'null' => true,
+            ],
+            'permissions' => [
+                'type' => 'JSON',
                 'null' => true,
             ],
             'status' => [
                 'type' => 'VARCHAR',
                 'constraint' => 50,
                 'default' => 'active',
+            ],
+            'connected_at' => [
+                'type' => 'DATETIME',
+                'null' => true,
+            ],
+            'last_synced_at' => [
+                'type' => 'DATETIME',
+                'null' => true,
             ],
             'metadata' => [
                 'type' => 'TEXT',
@@ -119,10 +150,18 @@ class CreateSocialTables extends Migration
 
         $this->forge->addKey('social_connection_id', true);
         $this->forge->addKey('social_account_id');
+        $this->forge->addKey('parent_connection_id');
         $this->forge->addKey('provider');
         $this->forge->addKey('status');
         $this->forge->addUniqueKey(['provider', 'external_id']);
-        $this->forge->addForeignKey('social_account_id', 'social_account', 'social_account_id', 'CASCADE', 'CASCADE');
+        $this->forge->addForeignKey('social_account_id', 'social_account', 'social_account_id', 'CASCADE', 'SET NULL');
+        $this->forge->addForeignKey(
+            'parent_connection_id',
+            'social_connection',
+            'social_connection_id',
+            'CASCADE',
+            'SET NULL'
+        );
         $this->forge->createTable('social_connection', true);
     }
 

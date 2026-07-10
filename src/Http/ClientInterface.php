@@ -30,6 +30,4 @@ interface ClientInterface
      * @param array<string, mixed> $options
      */
     public function delete(string $uri, array $options = []): Response;
-
-    public function send(Request $request): Response;
 }
