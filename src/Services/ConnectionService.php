@@ -14,6 +14,8 @@ use function date;
 use function json_decode;
 use function json_encode;
 use function sprintf;
+use function strtotime;
+use function time;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -114,14 +116,57 @@ final class ConnectionService
      */
     public function updateAccessToken(int|string $connectionId, string $accessToken): Connection
     {
+        return $this->updateTokens($connectionId, $accessToken);
+    }
+
+    /**
+     * @param list<string> $permissions
+     *
+     * @throws JsonException
+     */
+    public function updateTokens(
+        int|string $connectionId,
+        string $accessToken,
+        ?string $refreshToken = null,
+        ?string $tokenExpiresAt = null,
+        array $permissions = []
+    ): Connection {
         $connection = $this->getConnection($connectionId);
 
         if ($connection === null) {
             throw new RepositoryException(sprintf('Connection [%s] was not found.', (string) $connectionId));
         }
 
-        return $this->connection($this->connections->update($connectionId, [
+        $data = [
             'access_token' => $accessToken,
+            'refresh_token' => $refreshToken,
+            'token_expires_at' => $tokenExpiresAt,
+        ];
+
+        if ($permissions !== []) {
+            $data['permissions'] = $this->encodeMetadata($permissions);
+        }
+
+        foreach (['refresh_token', 'token_expires_at'] as $nullableField) {
+            if ($data[$nullableField] === null) {
+                unset($data[$nullableField]);
+            }
+        }
+
+        return $this->connection($this->connections->update($connectionId, $data));
+    }
+
+    public function updateStatus(int|string $connectionId, string $status): Connection
+    {
+        return $this->connection($this->connections->update($connectionId, [
+            'status' => $status,
+        ]));
+    }
+
+    public function updateLastSyncedAt(int|string $connectionId, ?string $syncedAt = null): Connection
+    {
+        return $this->connection($this->connections->update($connectionId, [
+            'last_synced_at' => $syncedAt ?? $this->now(),
         ]));
     }
 
@@ -137,6 +182,33 @@ final class ConnectionService
         $connection = $this->connections->findByProviderExternalId($provider, $externalId);
 
         return $connection === null ? null : $this->connection($connection);
+    }
+
+    /**
+     * @return list<Connection>
+     */
+    public function childConnections(int|string $connectionId): array
+    {
+        $connections = [];
+
+        foreach ($this->connections->findByParentConnectionId($connectionId) as $connection) {
+            $connections[] = $this->connection($connection);
+        }
+
+        return $connections;
+    }
+
+    public function isTokenExpired(Connection $connection): bool
+    {
+        $expiresAt = $connection->token_expires_at;
+
+        if (! is_string($expiresAt) || $expiresAt === '') {
+            return false;
+        }
+
+        $timestamp = strtotime($expiresAt);
+
+        return $timestamp !== false && $timestamp <= time();
     }
 
     private function connection(Entity $entity): Connection
