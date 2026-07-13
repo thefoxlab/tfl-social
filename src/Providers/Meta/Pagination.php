@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace TheFoxLab\TflSocial\Providers\Meta;
 
-final class Pagination
+use JsonSerializable;
+use TheFoxLab\TflSocial\Contracts\Arrayable;
+use TheFoxLab\TflSocial\Traits\ArrayableTrait;
+
+final class Pagination implements Arrayable, JsonSerializable
 {
+    use ArrayableTrait;
+
     public function __construct(
         private readonly ?string $before = null,
         private readonly ?string $after = null,
@@ -48,5 +54,13 @@ final class Pagination
     public function next(): ?string
     {
         return $this->next;
+    }
+
+    /**
+     * @return array<string, mixed>|list<mixed>
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

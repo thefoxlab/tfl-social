@@ -136,6 +136,13 @@ final class Connector implements ConnectorInterface
 
         return $this->pageService()->pages($this->facebookOAuthResponse());
     }
+    
+    public function businessPages(): PageCollection
+    {
+        $this->assertFacebookProvider();
+        
+        return $this->pageService()->businessPages($this->facebookOAuthResponse());
+    }
 
     /**
      * @param list<string>|string|null $fields

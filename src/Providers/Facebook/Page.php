@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace TheFoxLab\TflSocial\Providers\Facebook;
 
 use ArrayIterator;
+use JsonSerializable;
+use TheFoxLab\TflSocial\Contracts\Arrayable;
+use TheFoxLab\TflSocial\Traits\ArrayableTrait;
 
-final class Page
+final class Page implements Arrayable, JsonSerializable
 {
+    use ArrayableTrait;
+
     /**
      * @param list<string> $tasks
      */
@@ -52,5 +57,13 @@ final class Page
     public function picture(): ?string
     {
         return $this->picture;
+    }
+
+    /**
+     * @return array<string, mixed>|list<mixed>
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

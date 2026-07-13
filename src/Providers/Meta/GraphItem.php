@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace TheFoxLab\TflSocial\Providers\Meta;
 
-final class GraphItem
+use JsonSerializable;
+use TheFoxLab\TflSocial\Contracts\Arrayable;
+use TheFoxLab\TflSocial\Traits\ArrayableTrait;
+
+final class GraphItem implements Arrayable, JsonSerializable
 {
+    use ArrayableTrait;
+
     /**
      * @param array<string, mixed> $attributes
      */
@@ -32,5 +38,13 @@ final class GraphItem
     public function attributes(): array
     {
         return $this->attributes;
+    }
+
+    /**
+     * @return array<string, mixed>|list<mixed>
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

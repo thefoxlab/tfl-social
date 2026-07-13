@@ -7,13 +7,18 @@ namespace TheFoxLab\TflSocial\Providers\Instagram;
 use ArrayIterator;
 use Countable;
 use IteratorAggregate;
+use JsonSerializable;
+use TheFoxLab\TflSocial\Contracts\Arrayable;
+use TheFoxLab\TflSocial\Traits\ArrayableTrait;
 use Traversable;
 
 /**
  * @implements IteratorAggregate<int, BusinessAccount>
  */
-final class BusinessAccountCollection implements Countable, IteratorAggregate
+final class BusinessAccountCollection implements Arrayable, Countable, IteratorAggregate, JsonSerializable
 {
+    use ArrayableTrait;
+
     /**
      * @param list<BusinessAccount> $accounts
      */
@@ -54,5 +59,13 @@ final class BusinessAccountCollection implements Countable, IteratorAggregate
     public function isEmpty(): bool
     {
         return $this->accounts === [];
+    }
+
+    /**
+     * @return array<string, mixed>|list<mixed>
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

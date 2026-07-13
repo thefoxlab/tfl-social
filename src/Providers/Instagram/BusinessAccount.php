@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace TheFoxLab\TflSocial\Providers\Instagram;
 
-final class BusinessAccount
+use JsonSerializable;
+use TheFoxLab\TflSocial\Contracts\Arrayable;
+use TheFoxLab\TflSocial\Traits\ArrayableTrait;
+
+final class BusinessAccount implements Arrayable, JsonSerializable
 {
+    use ArrayableTrait;
+
     public function __construct(
         private readonly string $accountId,
         private readonly ?string $username = null,
@@ -32,5 +38,13 @@ final class BusinessAccount
     public function profilePicture(): ?string
     {
         return $this->profilePicture;
+    }
+
+    /**
+     * @return array<string, mixed>|list<mixed>
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

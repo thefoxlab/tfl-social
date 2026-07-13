@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace TheFoxLab\TflSocial\Providers\Facebook;
 
 use DateTimeImmutable;
+use JsonSerializable;
+use TheFoxLab\TflSocial\Contracts\Arrayable;
+use TheFoxLab\TflSocial\Traits\ArrayableTrait;
 
-final class OAuthResponse
+final class OAuthResponse implements Arrayable, JsonSerializable
 {
+    use ArrayableTrait;
+
     /**
      * @param list<string> $scopes
      */
@@ -46,5 +51,13 @@ final class OAuthResponse
     public function scopes(): array
     {
         return $this->scopes;
+    }
+
+    /**
+     * @return array<string, mixed>|list<mixed>
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

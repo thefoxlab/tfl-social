@@ -7,13 +7,18 @@ namespace TheFoxLab\TflSocial\Providers\Meta;
 use ArrayIterator;
 use Countable;
 use IteratorAggregate;
+use JsonSerializable;
+use TheFoxLab\TflSocial\Contracts\Arrayable;
+use TheFoxLab\TflSocial\Traits\ArrayableTrait;
 use Traversable;
 
 /**
  * @implements IteratorAggregate<int, GraphItem>
  */
-final class GraphCollection implements Countable, IteratorAggregate
+final class GraphCollection implements Arrayable, Countable, IteratorAggregate, JsonSerializable
 {
+    use ArrayableTrait;
+
     /**
      * @param list<GraphItem> $items
      */
@@ -61,5 +66,13 @@ final class GraphCollection implements Countable, IteratorAggregate
     public function pagination(): Pagination
     {
         return $this->pagination;
+    }
+
+    /**
+     * @return array<string, mixed>|list<mixed>
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace TheFoxLab\TflSocial\Entities;
 
 use CodeIgniter\Entity\Entity;
+use JsonSerializable;
+use TheFoxLab\TflSocial\Contracts\Arrayable;
 
-class Media extends Entity
+class Media extends Entity implements Arrayable, JsonSerializable
 {
     protected $attributes = [
         'social_media_id' => null,
@@ -27,4 +29,12 @@ class Media extends Entity
         'social_post_id' => '?integer',
         'sort_order' => 'integer',
     ];
+
+    /**
+     * @return array<string, mixed>|list<mixed>
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
+    }
 }

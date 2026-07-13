@@ -7,13 +7,18 @@ namespace TheFoxLab\TflSocial\Providers\Facebook;
 use ArrayIterator;
 use Countable;
 use IteratorAggregate;
+use JsonSerializable;
+use TheFoxLab\TflSocial\Contracts\Arrayable;
+use TheFoxLab\TflSocial\Traits\ArrayableTrait;
 use Traversable;
 
 /**
  * @implements IteratorAggregate<int, Page>
  */
-final class PageCollection implements Countable, IteratorAggregate
+final class PageCollection implements Arrayable, Countable, IteratorAggregate, JsonSerializable
 {
+    use ArrayableTrait;
+
     /**
      * @param list<Page> $pages
      */
@@ -54,5 +59,13 @@ final class PageCollection implements Countable, IteratorAggregate
     public function isEmpty(): bool
     {
         return $this->pages === [];
+    }
+
+    /**
+     * @return array<string, mixed>|list<mixed>
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

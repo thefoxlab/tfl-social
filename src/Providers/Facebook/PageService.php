@@ -46,15 +46,78 @@ final class PageService
 
     public function page(string $pageId, OAuthResponse $oauthResponse): Page
     {
+        // 1. Try me/accounts first - fast path
         $page = $this->pages($oauthResponse)->find($pageId);
-
-        if ($page === null) {
-            throw OAuthException::invalidResponse(sprintf('Facebook page [%s] was not found.', $pageId));
+        
+        if ($page !== null) {
+            return $page;
         }
+        
+        // 2. Fallback: Direct lookup using User Token
+        // This works even if Page isn't in me/accounts
+        $payload = $this->payload($this->get(
+            '/' . $pageId . '?fields=id,name,access_token,category,tasks,picture{url}',
+            $this->accessToken($oauthResponse)
+            ));
+        
+        if (!is_array($payload) || empty($payload['access_token'])) {
+            throw OAuthException::invalidResponse(
+                sprintf('Facebook page [%s] was not found or you lack access.', $pageId)
+                );
+        }
+        
+        return $this->mapPage($payload);
 
-        return $page;
     }
-
+    public function businessPages(OAuthResponse $oauthResponse): PageCollection
+    {
+        $businesses = $this->payload($this->client->get('/me/businesses', [
+            'base_url' => self::GRAPH_BASE_URL . '/' . $this->graphVersion(),
+            'bearer_token' => $this->accessToken($oauthResponse),
+            'query' => ['fields' => 'id,name'],
+        ]));
+        
+        $pages = [];
+        $seenPageIds = []; // Dedupe
+        
+        foreach ($businesses['data'] ?? [] as $biz) {
+            // Get Pages the business owns
+            $owned = $this->payload($this->client->get('/' . $biz['id'] . '/owned_pages', [
+                'base_url' => self::GRAPH_BASE_URL . '/' . $this->graphVersion(),
+                'bearer_token' => $this->accessToken($oauthResponse),
+                'query' => ['fields' => 'id,name,access_token,category,tasks,picture{url}'],
+            ]));
+            
+            // Get Pages clients shared with you
+            $clients = $this->payload($this->client->get('/' . $biz['id'] . '/client_pages', [
+                'base_url' => self::GRAPH_BASE_URL . '/' . $this->graphVersion(),
+                'bearer_token' => $this->accessToken($oauthResponse),
+                'query' => ['fields' => 'id,name,access_token,category,tasks,picture{url}'],
+            ]));
+            
+            foreach (array_merge($owned['data'] ?? [], $clients['data'] ?? []) as $page) {
+                // Skip if not a valid page array or missing required fields
+                if (!is_array($page) || empty($page['id']) || empty($page['access_token'])) {
+                    continue;
+                }
+                
+                $pageId = (string) $page['id'];
+                
+                // Skip duplicates - same page can appear in multiple businesses
+                if (isset($seenPageIds[$pageId])) {
+                    continue;
+                }
+                
+                $seenPageIds[$pageId] = true;
+                $pages[] = $this->mapPage($page);
+            }
+        }
+        
+       // echo "<pre>";print_r($pages);exit;
+        return new PageCollection($pages);
+    }
+    
+    
     private function get(string $uri, string $accessToken): Response
     {
         try {
@@ -166,4 +229,6 @@ final class PageService
 
         return $value;
     }
+    
+    
 }
