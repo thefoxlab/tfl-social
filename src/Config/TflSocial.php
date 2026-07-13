@@ -29,17 +29,6 @@ class TflSocial extends BaseConfig
             'appSecret' => '',
             'redirectUri' => 'social/callback/facebook',
             'permissions' => [
-                'public_profile'
-            ],
-        ],
-        'instagram' => [
-            'enabled' => true,
-            'appId' => '',
-            'appSecret' => '',
-            'redirectUri' => 'social/callback/instagram',
-            'permissions' => [
-                'instagram_basic',
-                'instagram_manage_insights',
                 'pages_show_list',
             ],
         ],
@@ -71,8 +60,6 @@ class TflSocial extends BaseConfig
 
         $this->providers['facebook']['appId'] = $this->readEnvironment('facebook.appId');
         $this->providers['facebook']['appSecret'] = $this->readEnvironment('facebook.appSecret');
-        $this->providers['instagram']['appId'] = $this->readEnvironment('instagram.appId');
-        $this->providers['instagram']['appSecret'] = $this->readEnvironment('instagram.appSecret');
     }
 
     private function readEnvironment(string $key): string

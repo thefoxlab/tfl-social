@@ -6,7 +6,6 @@ namespace TheFoxLab\TflSocial;
 
 use TheFoxLab\TflSocial\Contracts\ProviderManagerInterface;
 use TheFoxLab\TflSocial\Providers\Facebook\FacebookProvider;
-use TheFoxLab\TflSocial\Providers\Instagram\InstagramProvider;
 use TheFoxLab\TflSocial\Providers\ProviderInterface;
 use TheFoxLab\TflSocial\Providers\ProviderRegistry;
 
@@ -50,7 +49,6 @@ final class ProviderManager implements ProviderManagerInterface
     private function defaultRegistry(): ProviderRegistry
     {
         return (new ProviderRegistry())
-            ->register(new FacebookProvider())
-            ->register(new InstagramProvider());
+            ->register(new FacebookProvider());
     }
 }

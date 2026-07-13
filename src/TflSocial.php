@@ -33,4 +33,14 @@ final class TflSocial
     {
         return $this->providerManager ??= new ProviderManager();
     }
+
+    public function facebook(): Connector
+    {
+        return $this->connect()->provider('facebook');
+    }
+
+    public function instagram(): Connector
+    {
+        return $this->connect()->provider('facebook');
+    }
 }
