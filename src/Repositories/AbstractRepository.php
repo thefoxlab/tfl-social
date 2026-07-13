@@ -30,14 +30,21 @@ abstract class AbstractRepository
     /**
      * @param array<string, mixed> $criteria
      */
-    public function findOne(array $criteria): ?Entity
+    public function findOne(array $criteria, ?string $orderBy = null): ?Entity
     {
-        $result = $this->model->where($criteria)->first();
-
+        $builder = $this->model->where($criteria);
+        
+        if ($orderBy !== null) {
+            [$column, $direction] = explode(' ', trim($orderBy), 2);
+            $builder->orderBy($column, $direction ?? 'ASC');
+        }
+        
+        $result = $builder->first();
+        
         if ($result === null) {
             return null;
         }
-
+        
         return $this->ensureEntity($result);
     }
 

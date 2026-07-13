@@ -481,18 +481,10 @@ final class Connector implements ConnectorInterface
 
     public function currentConnection(): ?Connection
     {
-        if ($this->currentConnection === null) {
-            return null;
-        }
-
-        $connectionId = $this->currentConnection->social_connection_id;
-
-        if (! is_int($connectionId) && ! is_string($connectionId)) {
-            return $this->currentConnection;
-        }
-
-        $this->currentConnection = $this->connectionService()->getConnection($connectionId);
-
+        $this->assertFacebookProvider();
+        
+        $this->currentConnection = $this->connectionService()->currentConnection('facebook');
+        
         return $this->currentConnection;
     }
 

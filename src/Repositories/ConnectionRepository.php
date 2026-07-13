@@ -22,6 +22,17 @@ final class ConnectionRepository extends AbstractRepository
         ]);
     }
 
+    public function findCurrentConnection(string $provider): ?Entity
+    {
+        return $this->findOne(
+            [
+                'provider' => $provider,
+                'status' => 'active',
+            ],
+            'connected_at DESC'
+            );
+    }
+    
     /**
      * @return list<Entity>
      */

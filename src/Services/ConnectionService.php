@@ -80,7 +80,12 @@ final class ConnectionService
 
         return $this->connection($this->connections->insert($data));
     }
-
+    public function currentConnection(string $provider): ?Connection
+    {
+        $connection = $this->connections->findCurrentConnection($provider);
+        
+        return $connection === null ? null : $this->connection($connection);
+    }
     public function disconnectProvider(int|string $connectionId): Connection
     {
         return $this->connection($this->connections->update($connectionId, [
