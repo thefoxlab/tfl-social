@@ -29,7 +29,7 @@ class TflSocial extends BaseConfig
             'appSecret' => '',
             'redirectUri' => 'social/callback/facebook',
             'permissions' => [
-                'business_management',
+                'business_management','pages_read_engagement',
                 'pages_show_list','instagram_manage_insights','instagram_basic'
             ],
         ],

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TheFoxLab\TflSocial\Repositories;
 
 use CodeIgniter\Entity\Entity;
+use TheFoxLab\TflSocial\Entities\Connection;
 use TheFoxLab\TflSocial\Models\ConnectionModel;
 
 final class ConnectionRepository extends AbstractRepository
@@ -14,25 +15,27 @@ final class ConnectionRepository extends AbstractRepository
         parent::__construct($model ?? new ConnectionModel(), 'social_connection_id');
     }
 
-    public function findByProviderExternalId(string $provider, string $externalId): ?Entity
+    public function findByAccountProviderExternalId(int|string $accountId, string $provider, string $externalId): ?Entity
     {
         return $this->findOne([
+            'social_account_id' => $accountId,
             'provider' => $provider,
             'external_id' => $externalId,
         ]);
     }
 
-    public function findCurrentConnection(string $provider): ?Entity
+    public function findCurrentConnection(int|string $accountId, string $provider): ?Entity
     {
         return $this->findOne(
             [
+                'social_account_id' => $accountId,
                 'provider' => $provider,
-                'status' => 'active',
+                'status' => Connection::STATUS_ACTIVE,
             ],
             'connected_at DESC'
-            );
+        );
     }
-    
+
     /**
      * @return list<Entity>
      */

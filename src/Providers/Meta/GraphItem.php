@@ -41,6 +41,14 @@ final class GraphItem implements Arrayable, JsonSerializable
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return $this->attributes;
+    }
+
+    /**
      * @return array<string, mixed>|list<mixed>
      */
     public function jsonSerialize(): array

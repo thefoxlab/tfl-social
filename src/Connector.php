@@ -8,6 +8,7 @@ use DateTimeInterface;
 use InvalidArgumentException;
 use TheFoxLab\TflSocial\Config\TflSocial;
 use TheFoxLab\TflSocial\Contracts\ConnectorInterface;
+use TheFoxLab\TflSocial\Entities\Account;
 use TheFoxLab\TflSocial\Entities\Connection;
 use TheFoxLab\TflSocial\Http\Client;
 use TheFoxLab\TflSocial\Http\ClientInterface;
@@ -26,6 +27,7 @@ use TheFoxLab\TflSocial\Providers\Meta\GraphCollection;
 use TheFoxLab\TflSocial\Providers\Meta\GraphRequestOptions;
 use TheFoxLab\TflSocial\Providers\Meta\GraphResponse;
 use TheFoxLab\TflSocial\Providers\Meta\Pagination;
+use TheFoxLab\TflSocial\Services\AccountService;
 use TheFoxLab\TflSocial\Services\ConnectionService;
 
 use function iterator_to_array;
@@ -43,11 +45,26 @@ final class Connector implements ConnectorInterface
 
     private ?Connection $currentInstagramConnection = null;
 
+    private ?Account $currentAccount = null;
+
     public function __construct(
         private ?TflSocial $config = null,
         private ?ClientInterface $client = null,
-        private ?ConnectionService $connectionService = null
+        private ?ConnectionService $connectionService = null,
+        private ?AccountService $accountService = null
     ) {
+    }
+
+    public function account(Account $account): self
+    {
+        if ($this->currentAccount !== $account) {
+            $this->currentConnection = null;
+            $this->currentInstagramConnection = null;
+        }
+
+        $this->currentAccount = $account;
+
+        return $this;
     }
 
     public function provider(string $provider): self
@@ -164,7 +181,7 @@ final class Connector implements ConnectorInterface
 
         $page = $this->pageService()->page($pageId, $this->facebookOAuthResponse());
         $this->currentConnection = $this->connectionService()->connectProvider(
-            accountId: null,
+            accountId: $this->accountId(),
             provider: 'facebook',
             externalId: $page->pageId(),
             externalName: $page->name(),
@@ -218,7 +235,7 @@ final class Connector implements ConnectorInterface
         $account = $this->instagramBusiness($accountId);
         $pageConnection = $this->activePageConnection();
         $this->currentInstagramConnection = $this->connectionService()->connectProvider(
-            accountId: $pageConnection->social_account_id,
+            accountId: $this->accountId(),
             provider: 'instagram',
             externalId: $account->accountId(),
             externalName: $account->username() ?? $account->name(),
@@ -249,6 +266,13 @@ final class Connector implements ConnectorInterface
 
     public function currentInstagramConnection(): ?Connection
     {
+        if ($this->currentInstagramConnection === null) {
+            $this->currentInstagramConnection = $this->connectionService()->currentConnection(
+                $this->accountId(),
+                'instagram'
+            );
+        }
+
         if ($this->currentInstagramConnection === null) {
             $pageConnection = $this->currentConnection();
 
@@ -378,13 +402,6 @@ final class Connector implements ConnectorInterface
         return $this->instagramGraph()->stories($this->activeInstagramConnection(), $this->options($fields, $limit, $after, $before));
     }
 
-    /**
-     * @param list<string>|string|null $fields
-     */
-    public function insights(array|string|null $fields = null, ?int $limit = null, ?string $after = null, ?string $before = null): GraphCollection
-    {
-        return $this->instagramGraph()->insights($this->activeInstagramConnection(), $this->options($fields, $limit, $after, $before));
-    }
 
     /**
      * @param list<string>|string|null $fields
@@ -474,7 +491,10 @@ final class Connector implements ConnectorInterface
             $connection = $this->refreshToken();
         }
 
-        $this->currentConnection = $this->connectionService()->updateStatus($this->connectionId($connection), 'active');
+        $this->currentConnection = $this->connectionService()->updateStatus(
+            $this->connectionId($connection),
+            Connection::STATUS_ACTIVE
+        );
 
         return $this->currentConnection;
     }
@@ -482,10 +502,8 @@ final class Connector implements ConnectorInterface
     public function currentConnection(): ?Connection
     {
         $this->assertFacebookProvider();
-        
-        $this->currentConnection = $this->connectionService()->currentConnection('facebook');
-        
-        return $this->currentConnection;
+
+        return $this->resolveCurrentConnection('facebook');
     }
 
     private function storeOAuthResponse(FacebookOAuthResponse $response): FacebookOAuthResponse
@@ -542,6 +560,16 @@ final class Connector implements ConnectorInterface
         return $this->connectionService ??= new ConnectionService();
     }
 
+    private function accountService(): AccountService
+    {
+        return $this->accountService ??= new AccountService();
+    }
+
+    private function currentAccount(): Account
+    {
+        return $this->currentAccount ??= $this->accountService()->findOrCreateByName('default');
+    }
+
     private function facebookOAuthResponse(): FacebookOAuthResponse
     {
         if ($this->facebookOAuthResponse === null) {
@@ -553,7 +581,11 @@ final class Connector implements ConnectorInterface
 
     private function activePageConnection(): Connection
     {
-        $connection = $this->requiredPageConnection();
+        $connection = $this->resolveCurrentConnection('facebook');
+
+        if ($connection === null) {
+            throw new InvalidArgumentException('A connected Facebook Page is required.');
+        }
 
         if ($this->connectionService()->isTokenExpired($connection)) {
             return $this->refreshToken();
@@ -565,7 +597,7 @@ final class Connector implements ConnectorInterface
     private function activeInstagramConnection(): Connection
     {
         $pageConnection = $this->activePageConnection();
-        $connection = $this->currentInstagramConnection();
+        $connection = $this->resolveCurrentConnection('instagram') ?? $this->currentInstagramConnection();
 
         if ($connection === null) {
             throw new InvalidArgumentException('A connected Instagram Business account is required.');
@@ -594,10 +626,26 @@ final class Connector implements ConnectorInterface
 
     private function requiredPageConnection(): Connection
     {
-        $connection = $this->currentConnection();
+        $connection = $this->resolveCurrentConnection('facebook');
 
         if ($connection === null) {
             throw new InvalidArgumentException('A connected Facebook Page is required.');
+        }
+
+        return $connection;
+    }
+
+    private function resolveCurrentConnection(string $provider): ?Connection
+    {
+        
+        $connection = $this->connectionService()->currentConnection($this->accountId(), $provider);
+
+        if ($provider === 'facebook') {
+            $this->currentConnection = $connection;
+        }
+
+        if ($provider === 'instagram') {
+            $this->currentInstagramConnection = $connection;
         }
 
         return $connection;
@@ -616,6 +664,17 @@ final class Connector implements ConnectorInterface
     private function formatDateTime(?DateTimeInterface $dateTime): ?string
     {
         return $dateTime?->format('Y-m-d H:i:s');
+    }
+
+    private function accountId(): int|string
+    {
+        $accountId = $this->currentAccount()->social_account_id;
+
+        if (! is_int($accountId) && ! is_string($accountId)) {
+            throw new InvalidArgumentException('Account id is missing.');
+        }
+
+        return $accountId;
     }
 
     private function connectionId(Connection $connection): int|string

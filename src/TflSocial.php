@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace TheFoxLab\TflSocial;
 
+use TheFoxLab\TflSocial\Entities\Account;
+use TheFoxLab\TflSocial\Services\AccountService;
+
 final class TflSocial
 {
     private ?FeedBuilder $feedBuilder = null;
@@ -14,6 +17,21 @@ final class TflSocial
 
     private ?ProviderManager $providerManager = null;
 
+    private ?Account $account = null;
+
+    private ?AccountService $accountService = null;
+
+    public function account(string $name): self
+    {
+        $this->account = $this->accountService()->findOrCreateByName($name);
+
+        if ($this->connector !== null) {
+            $this->connector->account($this->account);
+        }
+
+        return $this;
+    }
+
     public function feed(): FeedBuilder
     {
         return $this->feedBuilder ??= new FeedBuilder();
@@ -21,7 +39,15 @@ final class TflSocial
 
     public function connect(): Connector
     {
-        return $this->connector ??= new Connector();
+        if ($this->connector === null) {
+            $this->connector = new Connector(accountService: $this->accountService());
+        }
+
+        if ($this->account !== null) {
+            $this->connector->account($this->account);
+        }
+
+        return $this->connector;
     }
 
     public function sync(): Synchronizer
@@ -42,5 +68,10 @@ final class TflSocial
     public function instagram(): Connector
     {
         return $this->connect()->provider('facebook');
+    }
+
+    private function accountService(): AccountService
+    {
+        return $this->accountService ??= new AccountService();
     }
 }

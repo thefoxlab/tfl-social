@@ -10,7 +10,9 @@ use TheFoxLab\TflSocial\Http\Client;
 use TheFoxLab\TflSocial\Http\ClientInterface;
 use TheFoxLab\TflSocial\Http\HttpException;
 use TheFoxLab\TflSocial\Http\Response;
+use TheFoxLab\TflSocial\Providers\Meta\GraphFields;
 
+use function implode;
 use function is_array;
 use function is_string;
 use function sprintf;
@@ -46,78 +48,69 @@ final class PageService
 
     public function page(string $pageId, OAuthResponse $oauthResponse): Page
     {
-        // 1. Try me/accounts first - fast path
         $page = $this->pages($oauthResponse)->find($pageId);
-        
+
         if ($page !== null) {
             return $page;
         }
-        
-        // 2. Fallback: Direct lookup using User Token
-        // This works even if Page isn't in me/accounts
+
         $payload = $this->payload($this->get(
-            '/' . $pageId . '?fields=id,name,access_token,category,tasks,picture{url}',
+            '/' . $pageId,
             $this->accessToken($oauthResponse)
-            ));
-        
-        if (!is_array($payload) || empty($payload['access_token'])) {
+        ));
+
+        if (! is_array($payload) || empty($payload['access_token'])) {
             throw OAuthException::invalidResponse(
                 sprintf('Facebook page [%s] was not found or you lack access.', $pageId)
-                );
+            );
         }
-        
-        return $this->mapPage($payload);
 
+        return $this->mapPage($payload);
     }
+
     public function businessPages(OAuthResponse $oauthResponse): PageCollection
     {
         $businesses = $this->payload($this->client->get('/me/businesses', [
             'base_url' => self::GRAPH_BASE_URL . '/' . $this->graphVersion(),
             'bearer_token' => $this->accessToken($oauthResponse),
-            'query' => ['fields' => 'id,name'],
+            'query' => ['fields' => $this->fields(GraphFields::facebookBusinesses())],
         ]));
-        
+
         $pages = [];
-        $seenPageIds = []; // Dedupe
-        
+        $seenPageIds = [];
+
         foreach ($businesses['data'] ?? [] as $biz) {
-            // Get Pages the business owns
             $owned = $this->payload($this->client->get('/' . $biz['id'] . '/owned_pages', [
                 'base_url' => self::GRAPH_BASE_URL . '/' . $this->graphVersion(),
                 'bearer_token' => $this->accessToken($oauthResponse),
-                'query' => ['fields' => 'id,name,access_token,category,tasks,picture{url}'],
+                'query' => ['fields' => $this->fields(GraphFields::facebookPageDiscovery())],
             ]));
-            
-            // Get Pages clients shared with you
+
             $clients = $this->payload($this->client->get('/' . $biz['id'] . '/client_pages', [
                 'base_url' => self::GRAPH_BASE_URL . '/' . $this->graphVersion(),
                 'bearer_token' => $this->accessToken($oauthResponse),
-                'query' => ['fields' => 'id,name,access_token,category,tasks,picture{url}'],
+                'query' => ['fields' => $this->fields(GraphFields::facebookPageDiscovery())],
             ]));
-            
+
             foreach (array_merge($owned['data'] ?? [], $clients['data'] ?? []) as $page) {
-                // Skip if not a valid page array or missing required fields
-                if (!is_array($page) || empty($page['id']) || empty($page['access_token'])) {
+                if (! is_array($page) || empty($page['id']) || empty($page['access_token'])) {
                     continue;
                 }
-                
+
                 $pageId = (string) $page['id'];
-                
-                // Skip duplicates - same page can appear in multiple businesses
+
                 if (isset($seenPageIds[$pageId])) {
                     continue;
                 }
-                
+
                 $seenPageIds[$pageId] = true;
                 $pages[] = $this->mapPage($page);
             }
         }
-        
-       // echo "<pre>";print_r($pages);exit;
+
         return new PageCollection($pages);
     }
-    
-    
+
     private function get(string $uri, string $accessToken): Response
     {
         try {
@@ -125,7 +118,7 @@ final class PageService
                 'base_url' => self::GRAPH_BASE_URL . '/' . $this->graphVersion(),
                 'bearer_token' => $accessToken,
                 'query' => [
-                    'fields' => 'id,name,access_token,category,tasks,picture{url}',
+                    'fields' => $this->fields(GraphFields::facebookPageDiscovery()),
                 ],
             ]);
         } catch (HttpException $exception) {
@@ -221,6 +214,14 @@ final class PageService
         return $version;
     }
 
+    /**
+     * @param list<string> $fields
+     */
+    private function fields(array $fields): string
+    {
+        return implode(',', $fields);
+    }
+
     private function stringValue(mixed $value, string $message): string
     {
         if (! is_string($value) || trim($value) === '') {
@@ -229,6 +230,4 @@ final class PageService
 
         return $value;
     }
-    
-    
 }

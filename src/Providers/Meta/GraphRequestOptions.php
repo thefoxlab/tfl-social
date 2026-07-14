@@ -8,6 +8,12 @@ use JsonSerializable;
 use TheFoxLab\TflSocial\Contracts\Arrayable;
 use TheFoxLab\TflSocial\Traits\ArrayableTrait;
 
+use function array_key_exists;
+use function implode;
+use function is_int;
+use function is_array;
+use function is_string;
+
 final class GraphRequestOptions implements Arrayable, JsonSerializable
 {
     use ArrayableTrait;
@@ -24,15 +30,34 @@ final class GraphRequestOptions implements Arrayable, JsonSerializable
     }
 
     /**
-     * @param list<string>|string|null $fields
+     * @param array<string, mixed>|list<string>|string|null $fields
      */
     public static function make(array|string|null $fields = null, ?int $limit = null, ?string $after = null, ?string $before = null): self
     {
+        if (is_array($fields) && array_key_exists('fields', $fields)) {
+            $limit = is_int($fields['limit'] ?? null) ? $fields['limit'] : $limit;
+            $after = is_string($fields['after'] ?? null) ? $fields['after'] : $after;
+            $before = is_string($fields['before'] ?? null) ? $fields['before'] : $before;
+            $fields = $fields['fields'];
+        }
+
         if (is_string($fields)) {
             $fields = [$fields];
         }
 
-        return new self($fields ?? [], $limit, $after, $before);
+        return new self(is_array($fields) ? self::normalizeFields($fields) : [], $limit, $after, $before);
+    }
+
+    /**
+     * @param list<string> $fields
+     */
+    public function withDefaultFields(array $fields): self
+    {
+        if ($this->fields !== []) {
+            return $this;
+        }
+
+        return new self($fields, $this->limit, $this->after, $this->before);
     }
 
     /**
@@ -67,5 +92,23 @@ final class GraphRequestOptions implements Arrayable, JsonSerializable
     public function jsonSerialize(): array
     {
         return $this->toArray();
+    }
+
+    /**
+     * @param array<mixed> $fields
+     *
+     * @return list<string>
+     */
+    private static function normalizeFields(array $fields): array
+    {
+        $normalized = [];
+
+        foreach ($fields as $field) {
+            if (is_string($field) && $field !== '') {
+                $normalized[] = $field;
+            }
+        }
+
+        return $normalized;
     }
 }

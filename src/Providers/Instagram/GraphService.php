@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace TheFoxLab\TflSocial\Providers\Instagram;
 
 use JsonException;
-use TheFoxLab\TflSocial\Providers\Meta\GraphItem;
 use TheFoxLab\TflSocial\Config\TflSocial;
 use TheFoxLab\TflSocial\Entities\Connection;
 use TheFoxLab\TflSocial\Http\Client;
@@ -14,6 +13,8 @@ use TheFoxLab\TflSocial\Http\HttpException;
 use TheFoxLab\TflSocial\Http\Response;
 use TheFoxLab\TflSocial\Providers\Meta\FeatureUnavailableResponse;
 use TheFoxLab\TflSocial\Providers\Meta\GraphCollection;
+use TheFoxLab\TflSocial\Providers\Meta\GraphFields;
+use TheFoxLab\TflSocial\Providers\Meta\GraphItem;
 use TheFoxLab\TflSocial\Providers\Meta\GraphRequestOptions;
 use TheFoxLab\TflSocial\Providers\Meta\GraphResponse;
 
@@ -42,7 +43,7 @@ final class GraphService
         return new GraphResponse($this->payload($this->get(
             '/' . $this->externalId($connection),
             $connection,
-            $options ?? GraphRequestOptions::make(['id', 'username', 'name', 'profile_picture_url'])
+            ($options ?? GraphRequestOptions::make())->withDefaultFields(GraphFields::instagramProfile())
         )));
     }
 
@@ -51,7 +52,7 @@ final class GraphService
         return GraphCollection::fromPayload($this->payload($this->get(
             '/' . $this->externalId($connection) . '/media',
             $connection,
-            $options ?? GraphRequestOptions::make(['id', 'caption', 'media_type', 'media_url', 'permalink', 'timestamp'])
+            ($options ?? GraphRequestOptions::make())->withDefaultFields(GraphFields::instagramMedia())
         )));
     }
 
@@ -60,64 +61,53 @@ final class GraphService
         return new GraphResponse($this->payload($this->get(
             '/' . $mediaId,
             $connection,
-            $options ?? GraphRequestOptions::make(['id', 'caption', 'media_type', 'media_url', 'permalink', 'timestamp'])
+            ($options ?? GraphRequestOptions::make())->withDefaultFields(GraphFields::instagramMediaById())
         )));
     }
 
     public function reels(Connection $connection, ?GraphRequestOptions $options = null): GraphCollection
     {
-        return $this->mediaByType($connection, ['REELS'], $options ?? GraphRequestOptions::make([
-            'id',
-            'caption',
-            'media_type',
-            'media_product_type',
-            'media_url',
-            'permalink',
-            'timestamp',
-        ]));
+        return $this->mediaByType(
+            $connection,
+            ['REELS'],
+            ($options ?? GraphRequestOptions::make())->withDefaultFields(GraphFields::instagramReels())
+        );
     }
 
     public function carousel(Connection $connection, ?GraphRequestOptions $options = null): GraphCollection
     {
-        return $this->mediaByType($connection, ['CAROUSEL_ALBUM'], $options ?? GraphRequestOptions::make([
-            'id',
-            'caption',
-            'media_type',
-            'media_product_type',
-            'media_url',
-            'permalink',
-            'timestamp',
-            'children{id,media_type,media_url,permalink,timestamp}',
-        ]));
+        return $this->mediaByType(
+            $connection,
+            ['CAROUSEL_ALBUM'],
+            ($options ?? GraphRequestOptions::make())->withDefaultFields(GraphFields::instagramCarousel())
+        );
     }
 
     public function stories(Connection $connection, ?GraphRequestOptions $options = null): GraphCollection|FeatureUnavailableResponse
     {
-        $response = $this->tryGet('/' . $this->externalId($connection) . '/stories', $connection, $options ?? GraphRequestOptions::make());
+        $response = $this->tryGet(
+            '/' . $this->externalId($connection) . '/stories',
+            $connection,
+            ($options ?? GraphRequestOptions::make())->withDefaultFields(GraphFields::instagramStories())
+        );
 
         return $response instanceof FeatureUnavailableResponse
             ? $response
             : GraphCollection::fromPayload($this->payload($response));
     }
 
-    public function insights(Connection $connection, ?GraphRequestOptions $options = null): GraphCollection
-    {
-        return GraphCollection::fromPayload($this->payload($this->get(
-            '/' . $this->externalId($connection) . '/insights',
-            $connection,
-            $options ?? GraphRequestOptions::make()
-        )));
-    }
 
     public function hashtagSearch(Connection $connection, string $hashtag): GraphResponse|FeatureUnavailableResponse
     {
-        $response = $this->tryGet('/ig_hashtag_search', $connection, GraphRequestOptions::make(
-            fields: null,
-            limit: null
-        ), [
-            'user_id' => $this->externalId($connection),
-            'q' => trim($hashtag),
-        ]);
+        $response = $this->tryGet(
+            '/ig_hashtag_search',
+            $connection,
+            GraphRequestOptions::make()->withDefaultFields(GraphFields::instagramHashtagSearch()),
+            [
+                'user_id' => $this->externalId($connection),
+                'q' => trim($hashtag),
+            ]
+        );
 
         return $response instanceof FeatureUnavailableResponse
             ? $response
@@ -129,9 +119,14 @@ final class GraphService
         string $hashtagId,
         ?GraphRequestOptions $options = null
     ): GraphCollection|FeatureUnavailableResponse {
-        $response = $this->tryGet('/' . $hashtagId . '/recent_media', $connection, $options ?? GraphRequestOptions::make(), [
-            'user_id' => $this->externalId($connection),
-        ]);
+        $response = $this->tryGet(
+            '/' . $hashtagId . '/recent_media',
+            $connection,
+            ($options ?? GraphRequestOptions::make())->withDefaultFields(GraphFields::instagramHashtagMedia()),
+            [
+                'user_id' => $this->externalId($connection),
+            ]
+        );
 
         return $response instanceof FeatureUnavailableResponse
             ? $response

@@ -9,6 +9,8 @@ use TheFoxLab\TflSocial\Entities\Account;
 use TheFoxLab\TflSocial\Exceptions\RepositoryException;
 use TheFoxLab\TflSocial\Repositories\AccountRepository;
 
+use function trim;
+
 final class AccountService
 {
     public function __construct(
@@ -42,6 +44,26 @@ final class AccountService
         $account = $this->accounts->findById($accountId);
 
         return $account === null ? null : $this->account($account);
+    }
+
+    public function findOrCreateByName(string $name): Account
+    {
+        $name = trim($name);
+
+        if ($name === '') {
+            throw new RepositoryException('Account name cannot be empty.');
+        }
+
+        $account = $this->accounts->findByName($name);
+
+        if ($account !== null) {
+            return $this->account($account);
+        }
+
+        return $this->createAccount([
+            'name' => $name,
+            'status' => Account::STATUS_ACTIVE,
+        ]);
     }
 
     private function account(Entity $entity): Account

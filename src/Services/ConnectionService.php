@@ -33,7 +33,7 @@ final class ConnectionService
      * @throws JsonException
      */
     public function connectProvider(
-        int|string|null $accountId,
+        int|string $accountId,
         string $provider,
         string $externalId,
         ?string $externalName = null,
@@ -54,12 +54,12 @@ final class ConnectionService
             'refresh_token' => $refreshToken,
             'token_expires_at' => $tokenExpiresAt,
             'permissions' => $permissions === [] ? null : $this->encodeMetadata($permissions),
-            'status' => 'active',
+            'status' => Connection::STATUS_ACTIVE,
             'connected_at' => $this->now(),
             'metadata' => $metadata === [] ? null : $this->encodeMetadata($metadata),
         ];
 
-        $existing = $this->connections->findByProviderExternalId($provider, $externalId);
+        $existing = $this->connections->findByAccountProviderExternalId($accountId, $provider, $externalId);
 
         if ($existing !== null) {
             foreach ([
@@ -80,12 +80,14 @@ final class ConnectionService
 
         return $this->connection($this->connections->insert($data));
     }
-    public function currentConnection(string $provider): ?Connection
+
+    public function currentConnection(int|string $accountId, string $provider): ?Connection
     {
-        $connection = $this->connections->findCurrentConnection($provider);
-        
+        $connection = $this->connections->findCurrentConnection($accountId, $provider);
+
         return $connection === null ? null : $this->connection($connection);
     }
+
     public function disconnectProvider(int|string $connectionId): Connection
     {
         return $this->connection($this->connections->update($connectionId, [
@@ -93,13 +95,14 @@ final class ConnectionService
         ]));
     }
 
-    public function disconnectProviderConnection(string $provider, string $externalId): Connection
+    public function disconnectProviderConnection(int|string $accountId, string $provider, string $externalId): Connection
     {
-        $connection = $this->findProviderConnection($provider, $externalId);
+        $connection = $this->findProviderConnection($accountId, $provider, $externalId);
 
         if ($connection === null) {
             throw new RepositoryException(sprintf(
-                'Connection [%s:%s] was not found.',
+                'Connection [%s:%s:%s] was not found.',
+                (string) $accountId,
                 $provider,
                 $externalId
             ));
@@ -182,9 +185,9 @@ final class ConnectionService
         return $connection === null ? null : $this->connection($connection);
     }
 
-    public function findProviderConnection(string $provider, string $externalId): ?Connection
+    public function findProviderConnection(int|string $accountId, string $provider, string $externalId): ?Connection
     {
-        $connection = $this->connections->findByProviderExternalId($provider, $externalId);
+        $connection = $this->connections->findByAccountProviderExternalId($accountId, $provider, $externalId);
 
         return $connection === null ? null : $this->connection($connection);
     }

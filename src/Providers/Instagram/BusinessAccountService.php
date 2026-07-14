@@ -11,7 +11,9 @@ use TheFoxLab\TflSocial\Http\Client;
 use TheFoxLab\TflSocial\Http\ClientInterface;
 use TheFoxLab\TflSocial\Http\HttpException;
 use TheFoxLab\TflSocial\Http\Response;
+use TheFoxLab\TflSocial\Providers\Meta\GraphFields;
 
+use function implode;
 use function is_array;
 use function is_string;
 use function sprintf;
@@ -62,7 +64,7 @@ final class BusinessAccountService
                 'base_url' => self::GRAPH_BASE_URL . '/' . $this->graphVersion(),
                 'bearer_token' => $accessToken,
                 'query' => [
-                    'fields' => 'instagram_business_account{id,username,name,profile_picture_url}',
+                    'fields' => 'instagram_business_account{' . $this->fields(GraphFields::instagramBusinessAccount()) . '}',
                 ],
             ]);
         } catch (HttpException $exception) {
@@ -141,6 +143,14 @@ final class BusinessAccountService
         }
 
         return $version;
+    }
+
+    /**
+     * @param list<string> $fields
+     */
+    private function fields(array $fields): string
+    {
+        return implode(',', $fields);
     }
 
     private function optionalString(mixed $value): ?string
