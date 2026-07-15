@@ -2,43 +2,49 @@
 
 ## Overview
 
-TFL Social is a provider-based PHP library that aggregates social media content from multiple platforms into a unified, normalized API.
+TFL Social is a provider-based PHP package that aggregates social media content from multiple platforms into a unified local database.
 
-The package is designed primarily for CodeIgniter 4 but should remain framework-friendly and reusable in other PHP applications.
+The package is designed primarily for CodeIgniter 4 but remains framework-friendly and reusable in any PHP application.
+
+Applications never communicate directly with provider APIs. They communicate only with the TflSocial Manager.
 
 ---
 
-## Goals
+# Goals
 
 - Simple public API
 - Provider-based architecture
-- Normalized data model
+- Database-first design
 - Multiple accounts
-- Multiple providers per account
+- Multiple connections per account
+- Multiple providers
+- Normalized data model
+- Automatic synchronization
+- Automatic token management
 - Extensible
-- PSR-12 compliant
-- SOLID principles
 - Composer installable
+- PSR-12 compliant
 
 ---
 
-## Initial Supported Providers
+# Current Providers
 
 - Facebook Pages
 - Instagram Business
 
 ---
 
-## Planned Providers
+# Planned Providers
 
-- YouTube
 - LinkedIn
+- YouTube
+- Threads
 - TikTok
 - X (Twitter)
 
 ---
 
-## Architecture
+# Architecture
 
 ```
 Application
@@ -46,39 +52,47 @@ Application
         ▼
  TflSocial Manager
         │
-        ├─────────────┐
-        ▼             ▼
- Facebook Driver   Instagram Driver
-        │             │
-        └──────┬──────┘
-               ▼
-      Meta Graph API
-               │
-               ▼
-     Normalized Database
-               │
-               ▼
-        Feed Builder API
+        ├────────────────────────────┐
+        ▼                            ▼
+ Connection Manager           Feed Builder
+        │                            │
+        ▼                            ▼
+ Provider Drivers           Local Database
+        │                            ▲
+        └──────────────┬─────────────┘
+                       ▼
+                 Synchronizer
+                       │
+                       ▼
+                Meta Graph API
 ```
 
 ---
 
-## Design Principles
+# Design Principles
 
-The application must never communicate directly with a provider.
+Applications never communicate directly with providers.
 
-All communication passes through the TflSocial Manager.
+Applications never communicate directly with the Graph API.
 
-The application should not know whether a post originated from Facebook or Instagram.
+Every provider returns normalized entities.
 
-All providers must return normalized entities.
+All providers share the same synchronization pipeline.
+
+The Feed Builder always reads from the local database.
 
 ---
 
-## Public API
+# Public API
 
 ```php
 $social = service('tflSocial');
+```
+
+### Account
+
+```php
+$social->account('thefoxlab');
 ```
 
 ### Connect
@@ -113,115 +127,121 @@ $social->providers();
 
 ---
 
-## Feed Builder
+# Synchronization
+
+Current synchronization scope.
+
+Facebook
+
+- Profile
+- Feed
+
+Instagram
+
+- Profile
+- Media
+
+The synchronizer performs UPSERT operations.
+
+Existing records are updated.
+
+New records are inserted.
+
+Records are never duplicated.
+
+Posts are never deleted.
+
+---
+
+# Feed Builder
+
+The Feed Builder never calls provider APIs.
+
+It always reads from the local database.
 
 Example:
 
 ```php
-$posts = $social->feed()
-    ->accounts([12, 25])
-    ->platform(['facebook', 'instagram'])
+$posts = $social
+    ->feed()
+    ->accounts([12,25])
+    ->platform(['facebook','instagram'])
+    ->latest()
     ->limit(20)
-    ->latest();
+    ->get();
 ```
 
-Future filters may include:
+Supported filters.
 
-- platform()
+- account()
 - accounts()
+- all()
+- platform()
 - type()
 - from()
 - to()
+- latest()
+- oldest()
 - limit()
-- offset()
-- orderBy()
 
 ---
 
-## Normalized Entity
+# Normalized Entity
 
-Every provider returns the same structure.
+Every provider is mapped into the same structure.
 
 ```
 Post
 
 id
+
 provider
+
 external_id
+
+parent_external_id
 
 type
 
 message
-caption
 
 permalink
 
 published_at
 
-media[]
+metrics
 
-metrics[]
+media[]
 
 raw_json
 ```
 
 ---
 
-## Multiple Accounts
+# Multiple Accounts
 
-The package supports unlimited accounts.
+Each account may contain multiple provider connections.
 
-Example:
+Example.
 
 ```
-Serengeti Lodge
-    Facebook
-    Instagram
+TheFoxLab
+    Facebook Page
+    Instagram Business
 
-Ngorongoro Camp
-    Facebook
-    Instagram
+Client A
+    Facebook Page
 
-Masai Mara Camp
-    Facebook
-```
-
----
-
-## Feed Aggregation
-
-The library should be capable of returning:
-
-- One account
-- Multiple accounts
-- All accounts
-
-The application decides the scope.
-
-Example:
-
-```php
-$social->feed()->account(15);
-
-$social->feed()->accounts([4,7,12]);
-
-$social->feed()->all();
+Client B
+    Facebook Page
+    Instagram Business
 ```
 
 ---
 
-## Storage Strategy
+# Database
 
-Provider data is normalized.
-
-Never create provider-specific tables such as:
-
-- facebook_posts
-- instagram_posts
-
-Instead use common tables.
-
-Example:
+The package uses normalized tables.
 
 - social_account
 - social_connection
@@ -229,45 +249,91 @@ Example:
 - social_media
 - social_sync
 
+Provider-specific tables must never be created.
+
 ---
 
-## Provider Responsibilities
+# Token Management
 
-Every provider is responsible for:
+Providers are responsible for token management.
+
+The package automatically refreshes expired tokens before making Graph requests.
+
+Applications never manually refresh tokens.
+
+---
+
+# Provider Responsibilities
+
+Each provider is responsible for:
 
 - OAuth
 - Token refresh
-- Fetching data
-- Parsing provider response
-- Mapping to normalized entities
+- Graph requests
+- Mapping provider responses
+- Synchronization support
+
+Providers must never communicate with Models.
 
 ---
 
-## Future Extensibility
+# Repository Responsibilities
+
+Repositories are the only layer that communicates with Models.
+
+Services must never access Models directly.
+
+Providers must never access Models.
+
+Architecture.
+
+```
+Application
+    ↓
+TflSocial
+    ↓
+Services
+    ↓
+Repositories
+    ↓
+Models
+    ↓
+Database
+```
+
+---
+
+# Future Extensibility
 
 Adding a new provider should only require:
 
-- New Driver
-- New Mapper
-- Provider Configuration
+- Provider implementation
+- OAuth implementation
+- Mapper
+- Configuration
 
-No changes should be required to application code.
+No changes should be required to:
+
+- Feed Builder
+- Synchronizer
+- Public API
+- Database schema
 
 ---
 
-## Coding Standards
+# Coding Standards
 
 - PHP 8.2+
-- PSR-12
 - Strict typing
-- SOLID principles
+- PSR-12
+- SOLID
 - Dependency Injection
-- No duplicated code
-- Framework-friendly
+- Reusable components
+- Framework friendly
 - Production ready
 
 ---
 
-## Version
+# Version
 
-Current Architecture Version: 1.0
+Architecture Version: 2.0

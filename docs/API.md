@@ -2,11 +2,13 @@
 
 ## Overview
 
-The public API should remain stable regardless of the supported providers.
+The public API is provider independent.
 
-Applications should only communicate with the TflSocial Manager.
+Applications communicate only with the `TflSocial` manager.
 
-Applications must never communicate directly with provider drivers.
+Applications must never communicate directly with provider implementations.
+
+The public API should remain stable as new providers are added.
 
 ---
 
@@ -18,12 +20,33 @@ $social = service('tflSocial');
 
 ---
 
-# Feed
+# Account Context
 
-Retrieve a normalized feed.
+Set the active account.
 
 ```php
-$posts = $social->feed()
+$social
+    ->account('thefoxlab');
+```
+
+All subsequent operations use this account.
+
+```php
+$social
+    ->account('thefoxlab')
+    ->facebook()
+    ->feed();
+```
+
+---
+
+# Feed
+
+Retrieve a normalized feed from the local database.
+
+```php
+$posts = $social
+    ->feed()
     ->account(15)
     ->latest();
 ```
@@ -31,7 +54,8 @@ $posts = $social->feed()
 Multiple accounts.
 
 ```php
-$posts = $social->feed()
+$posts = $social
+    ->feed()
     ->accounts([2,5,8])
     ->latest();
 ```
@@ -39,7 +63,8 @@ $posts = $social->feed()
 All accounts.
 
 ```php
-$posts = $social->feed()
+$posts = $social
+    ->feed()
     ->all()
     ->latest();
 ```
@@ -65,10 +90,6 @@ Supported methods.
 
 ->limit()
 
-->offset()
-
-->orderBy()
-
 ->latest()
 
 ->oldest()
@@ -82,16 +103,29 @@ Supported methods.
 
 Create a provider connection.
 
+Facebook.
+
 ```php
-$social->connect()
+$social
+    ->account('thefoxlab')
+    ->connect()
     ->provider('facebook');
 ```
 
-Future.
+Future providers.
 
 ```php
-$social->connect()
+$social
+    ->connect()
     ->provider('instagram');
+
+$social
+    ->connect()
+    ->provider('linkedin');
+
+$social
+    ->connect()
+    ->provider('youtube');
 ```
 
 ---
@@ -101,17 +135,44 @@ $social->connect()
 Synchronize one account.
 
 ```php
-$social->sync()
+$social
+    ->sync()
     ->account(15)
     ->run();
 ```
 
-Synchronize all accounts.
+Synchronize one connection.
 
 ```php
-$social->sync()
+$social
+    ->sync()
+    ->connection(5)
+    ->run();
+```
+
+Synchronize all active connections.
+
+```php
+$social
+    ->sync()
     ->all();
 ```
+
+The synchronizer imports provider data into the local database.
+
+Current synchronization scope.
+
+Facebook
+
+- Profile
+- Feed
+
+Instagram
+
+- Profile
+- Media
+
+The synchronizer performs UPSERT operations and never deletes posts.
 
 ---
 
@@ -123,9 +184,9 @@ Retrieve registered providers.
 $social->providers();
 ```
 
-Expected.
+Current.
 
-```php
+```text
 facebook
 
 instagram
@@ -133,19 +194,23 @@ instagram
 
 Future.
 
-```php
-youtube
-
+```text
 linkedin
 
+youtube
+
+threads
+
 tiktok
+
+x
 ```
 
 ---
 
 # Accounts
 
-Retrieve connected accounts.
+Retrieve configured accounts.
 
 ```php
 $social->accounts();
@@ -153,9 +218,21 @@ $social->accounts();
 
 ---
 
+# Token Management
+
+Access tokens are managed automatically.
+
+Before every provider request the package verifies the current access token.
+
+If required, the token is refreshed automatically.
+
+Applications never need to manually refresh tokens.
+
+---
+
 # Normalized Post
 
-Every provider returns the same entity.
+Every provider is normalized into the same entity.
 
 ```text
 id
@@ -164,20 +241,22 @@ provider
 
 external_id
 
+parent_external_id
+
 type
 
 message
-
-caption
 
 permalink
 
 published_at
 
-media
-
 metrics
+
+media
 ```
+
+The complete provider payload is always preserved inside `raw_json`.
 
 ---
 
@@ -185,22 +264,27 @@ metrics
 
 Planned additions.
 
-- Webhooks
-- Scheduled sync
+- Scheduler
 - Queue support
+- Webhooks
 - Widget Builder
 - Theme Builder
 - Analytics
 - Caching
-- Multiple provider support
+- LinkedIn
+- Threads
+- TikTok
+- X (Twitter)
 
 ---
 
 # Design Goals
 
 - Provider independent
-- Framework friendly
-- Consistent API
+- Database-first architecture
+- Consistent public API
 - Backwards compatible
 - Extensible
+- Multi-account support
+- Multi-provider support
 - PSR-12 compliant

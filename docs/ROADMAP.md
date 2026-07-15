@@ -2,173 +2,217 @@
 
 ## Vision
 
-Build a provider-based social media aggregation library that offers a unified API for integrating Facebook Pages, Instagram Business, and future social platforms into PHP applications.
+Build a provider-independent social media synchronization package that aggregates content from multiple social platforms into a normalized local database with a stable public API.
+
+The package should be reusable in any PHP application while providing first-class CodeIgniter 4 integration.
 
 ---
 
-# Version 0.1.0
+# Current Status
 
 ## Foundation
 
 - Composer package
 - PSR-4 autoloading
-- Package structure
 - CodeIgniter 4 integration
 - Configuration
 - Service registration
-- Manager
+- TflSocial Manager
 - Contracts
-- Base Provider
+- Provider architecture
 - Exceptions
+
+✔ Complete
 
 ---
 
-# Version 0.2.0
-
-## Database
+## Database Layer
 
 - Migrations
 - Models
 - Entities
 - Repositories
 - Normalized schema
-- Database configuration
+
+✔ Complete
 
 ---
 
-# Version 0.3.0
-
-## Feed Builder
-
-- Feed query builder
-- Filters
-- Sorting
-- Pagination
-- Collection
-- Result objects
-
----
-
-# Version 0.4.0
-
-## Meta Authentication
+## Connection Management
 
 - OAuth
 - Facebook Login
-- Instagram Login
-- Token exchange
-- Token refresh
-- Connection management
+- Facebook Pages
+- Instagram Business discovery
+- Multi-account support
+- Multi-connection support
+- Connection persistence
+
+✔ Complete
 
 ---
 
-# Version 0.5.0
+## Provider Layer
 
-## Facebook Provider
+Facebook
 
-- Fetch pages
-- Fetch posts
-- Fetch media
-- Normalize data
-- Store posts
-- Error handling
+- Profile
+- Feed
+- Posts
+- Photos
+- Videos
+- Albums
+
+Instagram
+
+- Profile
+- Media
+- Media By ID
+- Reels
+- Carousel
+- Stories
+- Hashtag Search
+- Recent Hashtag Media
+- Own Media By Hashtag
+
+✔ Complete
 
 ---
 
-# Version 0.6.0
+# Current Development
 
-## Instagram Provider
+## Automatic Token Management
 
-- Fetch business account
-- Fetch posts
-- Fetch media
-- Normalize data
-- Store posts
+- Transparent token refresh
+- Automatic retry
+- Connection status management
+
+🚧 In Progress
 
 ---
 
-# Version 0.7.0
+## Synchronizer
 
-## Synchronization
-
-- Scheduled sync
-- Incremental sync
-- Manual sync
+- Facebook Profile
+- Facebook Feed
+- Instagram Profile
+- Instagram Media
+- UPSERT support
+- Media synchronization
 - Sync logging
-- Retry handling
+
+🚧 In Progress
 
 ---
 
-# Version 0.8.0
+## Feed Builder
+
+The Feed Builder should read only from the local database.
+
+Features
+
+- Latest
+- Oldest
+- Account filters
+- Multiple accounts
+- Platform filters
+- Type filters
+- Pagination
+
+🚧 Planned
+
+---
+
+## Scheduler
+
+- Manual synchronization
+- Scheduled synchronization
+- Cron support
+- Incremental synchronization
+
+🚧 Planned
+
+---
 
 ## Widget API
 
-- JSON endpoint
-- Feed endpoint
+- JSON endpoints
+- Feed API
 - Filtering
-- Caching
 - Pagination
+
+📋 Planned
 
 ---
 
-# Version 0.9.0
+## JavaScript Widgets
 
-## JavaScript Widget
-
-- Embeddable script
-- Responsive layouts
 - Grid
 - Masonry
 - Carousel
-- Theme options
+- Responsive layouts
+- Theme support
+
+📋 Planned
 
 ---
 
-# Version 1.0.0
+# Future Providers
 
-## Stable Release
-
-- Documentation
-- Testing
-- Performance optimization
-- Security review
-- Public release
-
----
-
-# Future
-
-## Additional Providers
-
-- YouTube
 - LinkedIn
+- Threads
+- YouTube
 - TikTok
 - X (Twitter)
 
 ---
 
-## Future Features
+# Future Features
 
 - Webhooks
 - Queue support
 - Analytics
-- AI captions
+- AI content generation
 - Search
-- Hashtag filtering
+- Hashtag feeds
 - Content moderation
 - Multi-language support
-- Custom widgets
-- CDN assets
+- Widget Builder
+- Theme Builder
+
+---
+
+# Version Roadmap
+
+## Version 0.9
+
+- Automatic token refresh
+- Synchronizer
+- Feed Builder
+
+## Version 1.0
+
+- Scheduler
+- Widget API
+- Documentation
+- Testing
+- Performance
+- Security review
+- Production release
 
 ---
 
 # Development Principles
 
 - Provider independent
-- SOLID architecture
+- Database-first architecture
+- Stable public API
+- SOLID
 - PSR-12
+- Strict typing
+- Dependency Injection
+- Repository pattern
 - Framework friendly
 - Composer installable
 - Backwards compatible
-- Fully typed
-- Unit tested
+- Production ready
