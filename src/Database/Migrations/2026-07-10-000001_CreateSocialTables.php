@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace TheFoxLab\TflSocial\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
+use TheFoxLab\TflSocial\Entities\Account;
+use TheFoxLab\TflSocial\Entities\Connection;
+use TheFoxLab\TflSocial\Entities\Post;
 
 class CreateSocialTables extends Migration
 {
@@ -42,7 +45,7 @@ class CreateSocialTables extends Migration
             'status' => [
                 'type' => 'VARCHAR',
                 'constraint' => 50,
-                'default' => 'active',
+                'default' => Account::STATUS_ACTIVE,
             ],
             'metadata' => [
                 'type' => 'TEXT',
@@ -120,7 +123,7 @@ class CreateSocialTables extends Migration
             'status' => [
                 'type' => 'VARCHAR',
                 'constraint' => 50,
-                'default' => 'active',
+                'default' => Connection::STATUS_ACTIVE,
             ],
             'connected_at' => [
                 'type' => 'DATETIME',
@@ -187,6 +190,11 @@ class CreateSocialTables extends Migration
                 'type' => 'VARCHAR',
                 'constraint' => 191,
             ],
+            'parent_external_id' => [
+                'type' => 'VARCHAR',
+                'constraint' => 191,
+                'null' => true,
+            ],
             'type' => [
                 'type' => 'VARCHAR',
                 'constraint' => 50,
@@ -209,6 +217,10 @@ class CreateSocialTables extends Migration
                 'type' => 'DATETIME',
                 'null' => true,
             ],
+            'sync_time' => [
+                'type' => 'DATETIME',
+                'null' => true,
+            ],
             'metrics' => [
                 'type' => 'TEXT',
                 'null' => true,
@@ -220,7 +232,7 @@ class CreateSocialTables extends Migration
             'status' => [
                 'type' => 'VARCHAR',
                 'constraint' => 50,
-                'default' => 'active',
+                'default' => Post::STATUS_ACTIVE,
             ],
             'created_time' => [
                 'type' => 'DATETIME',
@@ -240,7 +252,9 @@ class CreateSocialTables extends Migration
         $this->forge->addKey('social_connection_id');
         $this->forge->addKey('provider');
         $this->forge->addKey('external_id');
+        $this->forge->addKey('parent_external_id');
         $this->forge->addKey('published_at');
+        $this->forge->addKey('sync_time');
         $this->forge->addKey('status');
         $this->forge->addUniqueKey(['social_connection_id', 'external_id']);
         $this->forge->addForeignKey(
@@ -355,6 +369,24 @@ class CreateSocialTables extends Migration
             'finished_at' => [
                 'type' => 'DATETIME',
                 'null' => true,
+            ],
+            'items_created' => [
+                'type' => 'INT',
+                'constraint' => 10,
+                'unsigned' => true,
+                'default' => 0,
+            ],
+            'items_updated' => [
+                'type' => 'INT',
+                'constraint' => 10,
+                'unsigned' => true,
+                'default' => 0,
+            ],
+            'items_failed' => [
+                'type' => 'INT',
+                'constraint' => 10,
+                'unsigned' => true,
+                'default' => 0,
             ],
             'message' => [
                 'type' => 'TEXT',

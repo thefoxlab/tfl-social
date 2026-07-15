@@ -88,6 +88,20 @@ final class ConnectionService
         return $connection === null ? null : $this->connection($connection);
     }
 
+    /**
+     * @return list<Connection>
+     */
+    public function activeConnections(?int $accountId = null): array
+    {
+        $connections = [];
+
+        foreach ($this->connections->findActiveConnections($accountId) as $connection) {
+            $connections[] = $this->connection($connection);
+        }
+
+        return $connections;
+    }
+
     public function disconnectProvider(int|string $connectionId): Connection
     {
         return $this->connection($this->connections->update($connectionId, [

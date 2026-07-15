@@ -29,6 +29,14 @@ final class TflSocial
             $this->connector->account($this->account);
         }
 
+        if ($this->synchronizer !== null) {
+            $accountId = $this->account->social_account_id;
+
+            if (is_int($accountId) || is_string($accountId)) {
+                $this->synchronizer->account((int) $accountId);
+            }
+        }
+
         return $this;
     }
 
@@ -52,7 +60,17 @@ final class TflSocial
 
     public function sync(): Synchronizer
     {
-        return $this->synchronizer ??= new Synchronizer();
+        $this->synchronizer ??= new Synchronizer();
+
+        if ($this->account !== null) {
+            $accountId = $this->account->social_account_id;
+
+            if (is_int($accountId) || is_string($accountId)) {
+                $this->synchronizer->account((int) $accountId);
+            }
+        }
+
+        return $this->synchronizer;
     }
 
     public function providers(): ProviderManager

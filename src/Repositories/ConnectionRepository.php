@@ -39,6 +39,22 @@ final class ConnectionRepository extends AbstractRepository
     /**
      * @return list<Entity>
      */
+    public function findActiveConnections(?int $accountId = null): array
+    {
+        $criteria = [
+            'status' => Connection::STATUS_ACTIVE,
+        ];
+
+        if ($accountId !== null) {
+            $criteria['social_account_id'] = $accountId;
+        }
+
+        return $this->findAll($criteria);
+    }
+
+    /**
+     * @return list<Entity>
+     */
     public function findByParentConnectionId(int|string $connectionId): array
     {
         return $this->findAll([

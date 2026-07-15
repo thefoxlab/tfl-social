@@ -44,6 +44,39 @@ final class PostService
         return $post === null ? null : $this->post($post);
     }
 
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array{post: Post, created: bool}
+     */
+    public function upsertPost(array $data): array
+    {
+        $connectionId = $data['social_connection_id'] ?? null;
+        $externalId = $data['external_id'] ?? null;
+
+        if (! is_int($connectionId) && ! is_string($connectionId)) {
+            throw new RepositoryException('Post connection id is required for UPSERT.');
+        }
+
+        if (! is_string($externalId) || $externalId === '') {
+            throw new RepositoryException('Post external id is required for UPSERT.');
+        }
+
+        $existing = $this->posts->findByConnectionExternalId($connectionId, $externalId);
+
+        if ($existing === null) {
+            return [
+                'post' => $this->storePost($data),
+                'created' => true,
+            ];
+        }
+
+        return [
+            'post' => $this->updatePost($existing->social_post_id, $data),
+            'created' => false,
+        ];
+    }
+
     private function post(Entity $entity): Post
     {
         if (! $entity instanceof Post) {

@@ -10,34 +10,35 @@ use TheFoxLab\TflSocial\Entities\Post;
 class PostModel extends Model
 {
     protected $table = 'social_post';
-
+    
     protected $primaryKey = 'social_post_id';
-
+    
     protected $returnType = Post::class;
-
+    
     protected $allowedFields = [
         'social_connection_id',
         'provider',
         'external_id',
+        'parent_external_id',
         'type',
         'message',
-        'caption',
         'permalink',
         'published_at',
+        'sync_time',
         'metrics',
         'raw_json',
         'status',
     ];
-
+    
     protected $useTimestamps = true;
-
+    
     protected $useSoftDeletes = true;
-
+    
     protected $dateFormat = 'datetime';
-
+    
     protected $createdField = 'created_time';
-
+    
     protected $updatedField = 'updated_time';
-
+    
     protected $deletedField = 'deleted_time';
 }

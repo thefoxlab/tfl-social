@@ -17,33 +17,68 @@ final class SyncService
     }
 
     public function startSync(
-        int|string|null $accountId = null,
-        int|string|null $connectionId = null,
-        ?string $provider = null
+        int|string|null $connectionId = null
+        ): Sync
+        {
+            return $this->sync($this->syncs->insert([
+                'social_connection_id' => $connectionId,
+                'status' => Sync::STATUS_RUNNING,
+                'started_at' => date('Y-m-d H:i:s'),
+                'items_created' => 0,
+                'items_updated' => 0,
+                'items_failed' => 0,
+            ]));
+    }
+
+    public function finishSync(
+        int|string $syncId,
+        ?string $message = null,
+        int $itemsCreated = 0,
+        int $itemsUpdated = 0,
+        int $itemsFailed = 0
     ): Sync {
-        return $this->sync($this->syncs->insert([
-            'social_account_id' => $accountId,
-            'social_connection_id' => $connectionId,
-            'provider' => $provider,
-            'status' => 'running',
-            'started_at' => date('Y-m-d H:i:s'),
-        ]));
+        return $this->completeSync(
+            $syncId,
+            Sync::STATUS_FINISHED,
+            $message,
+            $itemsCreated,
+            $itemsUpdated,
+            $itemsFailed
+        );
     }
 
-    public function finishSync(int|string $syncId, ?string $message = null): Sync
-    {
-        return $this->sync($this->syncs->update($syncId, [
-            'status' => 'finished',
-            'finished_at' => date('Y-m-d H:i:s'),
-            'message' => $message,
-        ]));
+    public function failSync(
+        int|string $syncId,
+        string $message,
+        int $itemsCreated = 0,
+        int $itemsUpdated = 0,
+        int $itemsFailed = 1
+    ): Sync {
+        return $this->completeSync(
+            $syncId,
+            Sync::STATUS_FAILED,
+            $message,
+            $itemsCreated,
+            $itemsUpdated,
+            $itemsFailed
+        );
     }
 
-    public function failSync(int|string $syncId, string $message): Sync
+    private function completeSync(
+        int|string $syncId,
+        string $status,
+        ?string $message,
+        int $itemsCreated,
+        int $itemsUpdated,
+        int $itemsFailed
+    ): Sync
     {
         return $this->sync($this->syncs->update($syncId, [
-            'status' => 'failed',
+            'status' => $status,
             'finished_at' => date('Y-m-d H:i:s'),
+            'items_created' => $itemsCreated,
+            'items_updated' => $itemsUpdated,
+            'items_failed' => $itemsFailed,
             'message' => $message,
         ]));
     }

@@ -42,6 +42,41 @@ final class MediaService
         return $media === null ? null : $this->media($media);
     }
 
+    /**
+     * @param list<array<string, mixed>> $items
+     */
+    public function syncMedia(int|string $postId, array $items): void
+    {
+        $seen = [];
+
+        foreach ($items as $index => $item) {
+            $sortOrder = is_int($item['sort_order'] ?? null) ? $item['sort_order'] : $index;
+            $item['social_post_id'] = $postId;
+            $item['sort_order'] = $sortOrder;
+            $seen[$sortOrder] = true;
+
+            $existing = $this->media->findByPostSortOrder($postId, $sortOrder);
+
+            if ($existing === null) {
+                $this->attachMedia($postId, $item);
+
+                continue;
+            }
+
+            $this->media($this->media->update($existing->social_media_id, $item));
+        }
+
+        foreach ($this->media->findByPostId($postId) as $media) {
+            $sortOrder = $media->sort_order;
+
+            if ((is_int($sortOrder) || is_string($sortOrder)) && isset($seen[(int) $sortOrder])) {
+                continue;
+            }
+
+            $this->detachMedia($media->social_media_id);
+        }
+    }
+
     private function media(Entity $entity): Media
     {
         if (! $entity instanceof Media) {
