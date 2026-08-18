@@ -28,6 +28,18 @@ namespace CodeIgniter\Config {
             }
         }
     }
+
+    if (! class_exists(BaseService::class)) {
+        class BaseService
+        {
+            protected static array $instances = [];
+
+            public static function getSharedInstance(string $key, ...$params): mixed
+            {
+                return static::$instances[$key] ??= static::$key(...array_merge($params, [false]));
+            }
+        }
+    }
 }
 
 namespace CodeIgniter\Entity {
