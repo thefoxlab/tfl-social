@@ -24,9 +24,10 @@ final class BusinessAccountService
     private const GRAPH_BASE_URL = 'https://graph.facebook.com';
 
     public function __construct(
-        private readonly TflSocial $config = new TflSocial(),
+        private ?TflSocial $config = null,
         ?ClientInterface $client = null
     ) {
+        $this->config = TflSocial::resolve($this->config);
         $this->client = $client ?? new Client($this->config);
     }
 

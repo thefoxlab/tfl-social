@@ -11,8 +11,9 @@ use Throwable;
 final class Client implements ClientInterface
 {
     public function __construct(
-        private readonly TflSocial $config = new TflSocial()
+        private ?TflSocial $config = null
     ) {
+        $this->config = TflSocial::resolve($this->config);
     }
 
     /**

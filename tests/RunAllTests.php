@@ -10,6 +10,7 @@ require_once __DIR__ . '/PostServiceTest.php';
 require_once __DIR__ . '/FacebookOAuthTest.php';
 require_once __DIR__ . '/ConnectorTest.php';
 require_once __DIR__ . '/SynchronizerTest.php';
+require_once __DIR__ . '/ConfigResolutionTest.php';
 
 echo "====================================================\n";
 echo "       TFL Social Complete Test Suite Runner        \n";
@@ -31,6 +32,9 @@ echo "\n----------------------------------------------------\n\n";
 echo "\n----------------------------------------------------\n\n";
 
 (new SynchronizerTest())->run();
+echo "\n----------------------------------------------------\n\n";
+
+(new ConfigResolutionTest())->run();
 echo "\n----------------------------------------------------\n\n";
 
 echo "====================================================\n";

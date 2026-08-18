@@ -43,14 +43,19 @@ final class Synchronizer implements SynchronizerInterface
     private ?int $connection = null;
 
     public function __construct(
-        private readonly TflSocial $config = new TflSocial(),
+        private ?TflSocial $config = null,
         ?ClientInterface $client = null,
-        private readonly ConnectionService $connections = new ConnectionService(),
-        private readonly PostService $posts = new PostService(),
-        private readonly MediaService $media = new MediaService(),
-        private readonly SyncService $syncs = new SyncService()
+        private ?ConnectionService $connections = null,
+        private ?PostService $posts = null,
+        private ?MediaService $media = null,
+        private ?SyncService $syncs = null
     ) {
+        $this->config = TflSocial::resolve($this->config);
         $this->client = $client ?? new Client($this->config);
+        $this->connections = $connections ?? new ConnectionService();
+        $this->posts = $posts ?? new PostService();
+        $this->media = $media ?? new MediaService();
+        $this->syncs = $syncs ?? new SyncService();
     }
 
     private readonly ClientInterface $client;

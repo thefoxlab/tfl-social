@@ -59,8 +59,42 @@ class TflSocial extends BaseConfig
             parent::__construct();
         }
 
-        $this->providers['facebook']['appId'] = $this->readEnvironment('facebook.appId');
-        $this->providers['facebook']['appSecret'] = $this->readEnvironment('facebook.appSecret');
+        $appId = $this->readEnvironment('facebook.appId');
+        if ($appId !== '') {
+            $this->providers['facebook']['appId'] = $appId;
+        }
+
+        $appSecret = $this->readEnvironment('facebook.appSecret');
+        if ($appSecret !== '') {
+            $this->providers['facebook']['appSecret'] = $appSecret;
+        }
+    }
+
+    public static function resolve(?self $config = null): self
+    {
+        if ($config !== null) {
+            return $config;
+        }
+
+        if (function_exists('config')) {
+            $resolved = config('TflSocial');
+
+            if ($resolved instanceof self) {
+                return $resolved;
+            }
+        }
+
+        if (class_exists('Config\\TflSocial')) {
+            /** @var class-string<self> $class */
+            $class = 'Config\\TflSocial';
+            $resolved = new $class();
+
+            if ($resolved instanceof self) {
+                return $resolved;
+            }
+        }
+
+        return new self();
     }
 
     private function readEnvironment(string $key): string

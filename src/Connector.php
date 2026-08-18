@@ -542,7 +542,7 @@ final class Connector implements ConnectorInterface
 
     private function config(): TflSocial
     {
-        return $this->config ??= new TflSocial();
+        return $this->config ??= TflSocial::resolve();
     }
 
     private function client(): ClientInterface
