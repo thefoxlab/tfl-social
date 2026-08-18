@@ -15,6 +15,14 @@ final class ConnectionRepository extends AbstractRepository
         parent::__construct($model ?? new ConnectionModel(), 'social_connection_id');
     }
 
+    public function findByProviderExternalId(string $provider, string $externalId): ?Entity
+    {
+        return $this->findOne([
+            'provider' => $provider,
+            'external_id' => $externalId,
+        ]);
+    }
+
     public function findByAccountProviderExternalId(int|string $accountId, string $provider, string $externalId): ?Entity
     {
         return $this->findOne([

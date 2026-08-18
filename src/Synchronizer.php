@@ -18,6 +18,7 @@ use TheFoxLab\TflSocial\Http\ClientInterface;
 use TheFoxLab\TflSocial\Providers\Facebook\GraphService as FacebookGraphService;
 use TheFoxLab\TflSocial\Providers\Facebook\OAuth as FacebookOAuth;
 use TheFoxLab\TflSocial\Providers\Instagram\GraphService as InstagramGraphService;
+use TheFoxLab\TflSocial\Providers\Meta\FeatureUnavailableResponse;
 use TheFoxLab\TflSocial\Providers\Meta\GraphItem;
 use TheFoxLab\TflSocial\Providers\Meta\GraphResponse;
 use TheFoxLab\TflSocial\Services\ConnectionService;
@@ -25,12 +26,14 @@ use TheFoxLab\TflSocial\Services\MediaService;
 use TheFoxLab\TflSocial\Services\PostService;
 use TheFoxLab\TflSocial\Services\SyncService;
 
+use function ctype_digit;
 use function date;
 use function in_array;
 use function is_array;
 use function is_int;
 use function is_string;
 use function json_encode;
+use function ltrim;
 use function strtolower;
 use function trim;
 
@@ -182,7 +185,7 @@ final class Synchronizer implements SynchronizerInterface
 
                     return $this->connections->updateTokens(
                         $this->connectionId($connection),
-                        $this->stringValue($parent->access_token, 'Parent Facebook Page token is missing.'),
+                        $this->stringValue($parent->access_token, 'Parent access token is missing.'),
                         tokenExpiresAt: $this->nullableString($parent->token_expires_at)
                     );
                 }

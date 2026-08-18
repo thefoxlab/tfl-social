@@ -19,6 +19,7 @@ class AccountModel extends Model
         'name',
         'status',
         'metadata',
+        'hashtag',
     ];
 
     protected $useTimestamps = true;

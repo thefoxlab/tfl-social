@@ -5,9 +5,6 @@ declare(strict_types=1);
 namespace TheFoxLab\TflSocial\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
-use TheFoxLab\TflSocial\Entities\Account;
-use TheFoxLab\TflSocial\Entities\Connection;
-use TheFoxLab\TflSocial\Entities\Post;
 
 class CreateSocialTables extends Migration
 {
@@ -45,9 +42,13 @@ class CreateSocialTables extends Migration
             'status' => [
                 'type' => 'VARCHAR',
                 'constraint' => 50,
-                'default' => Account::STATUS_ACTIVE,
+                'default' => 'active',
             ],
             'metadata' => [
+                'type' => 'TEXT',
+                'null' => true,
+            ],
+            'hashtag' => [
                 'type' => 'TEXT',
                 'null' => true,
             ],
@@ -123,7 +124,7 @@ class CreateSocialTables extends Migration
             'status' => [
                 'type' => 'VARCHAR',
                 'constraint' => 50,
-                'default' => Connection::STATUS_ACTIVE,
+                'default' => 'active',
             ],
             'connected_at' => [
                 'type' => 'DATETIME',
@@ -152,18 +153,19 @@ class CreateSocialTables extends Migration
         ]);
 
         $this->forge->addKey('social_connection_id', true);
+        $this->forge->addUniqueKey(['social_account_id', 'provider', 'external_id'], 'account_provider_external_id');
         $this->forge->addKey('social_account_id');
         $this->forge->addKey('parent_connection_id');
         $this->forge->addKey('provider');
         $this->forge->addKey('status');
-        $this->forge->addUniqueKey(['provider', 'external_id']);
-        $this->forge->addForeignKey('social_account_id', 'social_account', 'social_account_id', 'CASCADE', 'SET NULL');
+        $this->forge->addForeignKey('social_account_id', 'social_account', 'social_account_id', 'CASCADE', 'CASCADE', 'fk_connection_social_account_id');
         $this->forge->addForeignKey(
             'parent_connection_id',
             'social_connection',
             'social_connection_id',
             'CASCADE',
-            'SET NULL'
+            'CASCADE',
+            'fk_connection_parent_connection_id'
         );
         $this->forge->createTable('social_connection', true);
     }
@@ -204,10 +206,6 @@ class CreateSocialTables extends Migration
                 'type' => 'TEXT',
                 'null' => true,
             ],
-            'caption' => [
-                'type' => 'TEXT',
-                'null' => true,
-            ],
             'permalink' => [
                 'type' => 'VARCHAR',
                 'constraint' => 2048,
@@ -232,7 +230,7 @@ class CreateSocialTables extends Migration
             'status' => [
                 'type' => 'VARCHAR',
                 'constraint' => 50,
-                'default' => Post::STATUS_ACTIVE,
+                'default' => 'active',
             ],
             'created_time' => [
                 'type' => 'DATETIME',
@@ -249,20 +247,21 @@ class CreateSocialTables extends Migration
         ]);
 
         $this->forge->addKey('social_post_id', true);
+        $this->forge->addUniqueKey(['social_connection_id', 'external_id'], 'social_connection_id_external_id');
         $this->forge->addKey('social_connection_id');
         $this->forge->addKey('provider');
         $this->forge->addKey('external_id');
-        $this->forge->addKey('parent_external_id');
         $this->forge->addKey('published_at');
-        $this->forge->addKey('sync_time');
         $this->forge->addKey('status');
-        $this->forge->addUniqueKey(['social_connection_id', 'external_id']);
+        $this->forge->addKey('parent_external_id');
+        $this->forge->addKey('sync_time');
         $this->forge->addForeignKey(
             'social_connection_id',
             'social_connection',
             'social_connection_id',
             'CASCADE',
-            'CASCADE'
+            'CASCADE',
+            'fk_post_social_connection_id'
         );
         $this->forge->createTable('social_post', true);
     }
@@ -327,7 +326,14 @@ class CreateSocialTables extends Migration
 
         $this->forge->addKey('social_media_id', true);
         $this->forge->addKey('social_post_id');
-        $this->forge->addForeignKey('social_post_id', 'social_post', 'social_post_id', 'CASCADE', 'CASCADE');
+        $this->forge->addForeignKey(
+            'social_post_id',
+            'social_post',
+            'social_post_id',
+            'CASCADE',
+            'CASCADE',
+            'fk_media_social_post_id'
+        );
         $this->forge->createTable('social_media', true);
     }
 
@@ -340,21 +346,10 @@ class CreateSocialTables extends Migration
                 'unsigned' => true,
                 'auto_increment' => true,
             ],
-            'social_account_id' => [
-                'type' => 'INT',
-                'constraint' => 10,
-                'unsigned' => true,
-                'null' => true,
-            ],
             'social_connection_id' => [
                 'type' => 'INT',
                 'constraint' => 10,
                 'unsigned' => true,
-                'null' => true,
-            ],
-            'provider' => [
-                'type' => 'VARCHAR',
-                'constraint' => 50,
                 'null' => true,
             ],
             'status' => [
@@ -392,32 +387,22 @@ class CreateSocialTables extends Migration
                 'type' => 'TEXT',
                 'null' => true,
             ],
-            'raw_json' => [
-                'type' => 'TEXT',
-                'null' => true,
-            ],
             'created_time' => [
-                'type' => 'DATETIME',
-                'null' => true,
-            ],
-            'updated_time' => [
                 'type' => 'DATETIME',
                 'null' => true,
             ],
         ]);
 
         $this->forge->addKey('social_sync_id', true);
-        $this->forge->addKey('social_account_id');
         $this->forge->addKey('social_connection_id');
-        $this->forge->addKey('provider');
         $this->forge->addKey('status');
-        $this->forge->addForeignKey('social_account_id', 'social_account', 'social_account_id', 'CASCADE', 'SET NULL');
         $this->forge->addForeignKey(
             'social_connection_id',
             'social_connection',
             'social_connection_id',
             'CASCADE',
-            'SET NULL'
+            'SET NULL',
+            'fk_sync_social_connection_id'
         );
         $this->forge->createTable('social_sync', true);
     }

@@ -17,6 +17,7 @@ class Account extends Entity implements Arrayable, JsonSerializable
         'name' => null,
         'status' => null,
         'metadata' => null,
+        'hashtag' => null,
         'created_time' => null,
         'updated_time' => null,
         'deleted_time' => null,
