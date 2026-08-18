@@ -2,136 +2,112 @@
 
 ## Overview
 
-Access token management is completely automatic.
+Access token lifecycle management in TFL Social is fully automated.
 
-Applications never refresh tokens manually.
-
-The package is responsible for ensuring valid tokens before every provider request.
+Before making live Graph API requests or executing synchronization loops, the package verifies token expiration dates and transparently performs token refreshes without requiring manual application intervention.
 
 ---
 
-# Supported Providers
+# Token Architecture & Parent-Child Inheritance
 
-Current:
-
-- Facebook Pages
-- Instagram Business
-
-Instagram Business uses the parent Facebook Page token.
-
----
-
-# Token Lifecycle
+Meta Graph API requires a Facebook Page access token with appropriate permissions (`pages_read_engagement`, `pages_show_list`, `instagram_basic`, etc.) to interact with both Facebook Pages and linked Instagram Business accounts.
 
 ```
-Provider Request
+Facebook Page Connection (Parent)
+    │ access_token
+    │ token_expires_at
+    ▼
+Instagram Business Connection (Child - parent_connection_id)
+    │ inherits access_token
+    └ inherits token_expires_at
+```
 
-↓
+- **Facebook Page**: Primary token holder.
+- **Instagram Business**: Child connection linked via `parent_connection_id`. It shares the parent Facebook Page's access token and expiry schedule.
 
-Load Active Connection
+---
 
-↓
+# Automatic Token Lifecycle Pipeline
 
-Check Token Expiry
-
-↓
-
-Expired?
-
-↓
-
-Yes
-    ↓
-Refresh Token
-    ↓
-Save Token
-    ↓
-Retry Request
-
-No
-    ↓
-Execute Request
+```
+API Call or Sync Execution
+            │
+            ▼
+   Load Active Connection
+            │
+            ▼
+Evaluate Token Expiry (isTokenExpired)
+[Check token_expires_at <= time() + 300s]
+            │
+      ┌─────┴─────┐
+      ▼           ▼
+  Valid        Expired / Nearing Expiry
+  Token           │
+    │             ▼
+    │      Refresh Parent FB Token
+    │      (FacebookOAuth->exchangeShortLivedTokenForLongLivedToken)
+    │             │
+    │             ▼
+    │      Persist Refreshed FB Token in DB
+    │             │
+    │             ▼
+    │      Propagate Token to Child Instagram Connections
+    │             │
+    └─────────────┼─────────────┐
+                  ▼             ▼
+              Success        Failure
+                  │             │
+                  ▼             ▼
+              Execute       Mark Connection Status 'inactive'
+              Request       Throw Exception
 ```
 
 ---
 
-# Refresh Rules
+# Token Expiry Buffer & Statuses
 
-Before every Graph request:
-
-- Verify token expiry.
-- If expired or nearing expiry, refresh automatically.
-- Persist the refreshed token.
-- Retry the original request.
-
-The caller must never know a refresh occurred.
+- **Safety Buffer**: `TOKEN_EXPIRY_BUFFER_SECONDS = 300` (5 minutes). Tokens within 5 minutes of expiration are treated as expired to prevent mid-request failures.
+- **Connection Statuses**:
+  - `active`: Valid token and active connection.
+  - `expired`: Expiry date has passed or buffer triggered.
+  - `inactive`: Token refresh failed or permissions revoked.
+  - `disconnected`: Manually disconnected by application.
 
 ---
 
-# Failure Handling
+# Token Storage Schema
 
-If refresh fails:
+Tokens are persisted inside `social_connection`:
 
-- Mark connection inactive.
-- Throw a meaningful exception.
-
-Never return invalid provider responses.
+- `access_token` (TEXT): Encoded access token string.
+- `refresh_token` (TEXT): Optional refresh token.
+- `token_expires_at` (DATETIME): Calculated expiration timestamp (`Y-m-d H:i:s`).
+- `permissions` (JSON): List of granted OAuth permissions.
 
 ---
 
-# Storage
+# Manual Token Utilities (`Connector`)
 
-Tokens are stored in:
+While token management is automatic during sync and graph calls, applications can use manual utility methods on `Connector`:
 
+```php
+// Check connection status
+$status = $connector->connectionStatus();
+
+// Check token expiry boolean
+if ($connector->tokenExpired()) {
+    // Refresh parent token and child connections
+    $connector->refreshToken();
+}
+
+// Reconnect connection (refresh if expired & set status to 'active')
+$connector->reconnect();
 ```
-social_connection
-```
-
-Fields:
-
-- access_token
-- refresh_token
-- token_expires_at
 
 ---
 
-# Connection Resolution
+# Design Guarantees
 
-All provider requests resolve the active connection.
-
-Current Account
-
-↓
-
-Active Facebook Page
-
-↓
-
-Active Instagram Business (if required)
-
-Applications never manually resolve connections.
-
----
-
-# Provider Responsibilities
-
-Providers are responsible for:
-
-- Token validation
-- Token refresh
-- Graph authentication
-
-Providers must never access Models.
-
-Repositories remain responsible for persistence.
-
----
-
-# Design Goals
-
-- Transparent
-- Automatic
-- Reliable
-- No manual intervention
-- No breaking changes
-- Production ready
+1. **Transparent Execution**: Token refresh happens seamlessly behind public API wrappers.
+2. **Propagated Persistence**: Updating a parent Facebook Page token immediately cascades updates to child Instagram Business connections.
+3. **Fail-Safe Exception Handling**: Failed refreshes mark the database connection as `inactive` to avoid spamming invalid API requests.

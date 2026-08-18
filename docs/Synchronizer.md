@@ -2,211 +2,94 @@
 
 ## Overview
 
-The Synchronizer imports provider data into the local database.
+The `Synchronizer` imports remote social provider data (profiles, posts, media assets) into the local normalized database schema.
 
-Applications should never synchronize data manually.
-
-The Synchronizer is responsible for:
-
-- Fetching provider data
-- Mapping provider responses
-- Normalizing entities
-- UPSERT operations
-- Media synchronization
-- Synchronization history
+It handles token verification, automatic token refresh, parent-child token inheritance, payload mapping, connection-scoped UPSERT operations, media attachment syncing, and detailed sync history logging.
 
 ---
 
-# Current Scope
+# Entry Points & Invocation
 
-## Facebook
+```php
+// Synchronize active connections for a specific logical account (social_account_id)
+$social->sync()->account(15)->run();
 
-Synchronize:
+// Synchronize a specific connection (social_connection_id)
+$social->sync()->connection(5)->run();
 
-- Profile
-- Feed
-
-The Facebook Feed already includes:
-
-- Status posts
-- Photos
-- Videos
-- Albums
-- Links
-
-Do not synchronize Photos, Videos or Albums separately.
-
----
-
-## Instagram
-
-Synchronize:
-
-- Profile
-- Media
-
-Media already includes:
-
-- Photos
-- Reels
-- Carousel Posts
-
-Do not synchronize:
-
-- Stories
-- Hashtag Search
-- Recent Hashtag Media
-
-These remain live API features.
-
----
-
-# Synchronization Flow
-
-```
-Connection
-
-↓
-
-Verify Token
-
-↓
-
-Fetch Provider Data
-
-↓
-
-Normalize
-
-↓
-
-UPSERT social_post
-
-↓
-
-UPSERT social_media
-
-↓
-
-Update last_synced_at
-
-↓
-
-Insert social_sync record
+// Synchronize all active connections across all accounts
+$social->sync()->all();
 ```
 
 ---
 
-# UPSERT Rules
-
-Posts are uniquely identified by:
+# Execution Pipeline
 
 ```
-social_connection_id
-+
-external_id
-```
-
-If found:
-
-- Update
-- Refresh sync_time
-
-Otherwise:
-
-- Insert
-
-Never duplicate posts.
-
-Never truncate tables.
-
-Never delete posts.
-
----
-
-# Media
-
-Each media item becomes one record.
-
-Update changed media.
-
-Insert new media.
-
-Remove media no longer referenced by the post.
-
-Never delete the parent post.
-
----
-
-# Metrics
-
-Store engagement counts only.
-
-Example
-
-```json
-{
-    "likes": 52,
-    "comments": 14,
-    "shares": 3
-}
-```
-
-Store inside:
-
-```
-social_post.metrics
+Connection Target Resolution
+         │
+         ▼
+Start Sync Log (SyncService->startSync)
+         │
+         ▼
+Token Verification & Auto-Refresh (ensureValidToken)
+         │
+         ▼
+Fetch Provider Data (FacebookGraphService / InstagramGraphService)
+         │
+         ▼
+Normalize Payload into Post & Media Arrays
+         │
+         ▼
+Post UPSERT (PostService->upsertPost)
+ ├─ Insert new post (social_connection_id + external_id) ➔ created++
+ └─ Update existing post ➔ updated++
+         │
+         ▼
+Media Attachment Sync (MediaService->syncMedia)
+ ├─ Upsert media items by sort_order
+ └─ Detach/delete obsolete media no longer present
+         │
+         ▼
+Update Connection last_synced_at Timestamp
+         │
+         ▼
+Finish Sync Log (SyncService->finishSync / failSync)
 ```
 
 ---
 
-# Raw Payload
+# Provider Synchronization Scope
 
-Always preserve the complete provider response.
+### Facebook Pages
 
-Store inside:
+- **Profile Item**: Unique external ID `profile:<facebook_page_id>`, type `profile`, message set to Page name, profile picture stored in `social_media`.
+- **Feed Items**: Fetches `feed` edge. Maps post ID, message/story, permalink URL, publication timestamp (`Y-m-d H:i:s`), engagement metrics (`shares`), and full raw Graph response in `raw_json`.
+- **Media Attachments**: Extracts attachment URLs from `attachments.data` (`media_type`, image/unshimmed URLs), falling back to `full_picture`, `picture`, or `source`.
 
-```
-social_post.raw_json
-```
+### Instagram Business Accounts
 
-Applications should never depend on provider response structures.
-
----
-
-# Synchronization Log
-
-Each synchronization creates one history record.
-
-Populate:
-
-- started_at
-- finished_at
-- items_created
-- items_updated
-- items_failed
-- status
-- message
-
-Update:
-
-```
-social_connection.last_synced_at
-```
+- **Profile Item**: Unique external ID `profile:<instagram_account_id>`, type `profile`, username, engagement metrics (`followers_count`, `follows_count`, `media_count`), profile picture in `social_media`.
+- **Media Items**: Fetches `media` edge. Maps media ID, caption, permalink, publication timestamp, engagement metrics (`like_count`, `comments_count`), type (`image`, `video`, `reels`, `carousel_album`), and full raw Graph response in `raw_json`.
+- **Media Attachments**: Normalizes `media_url` and `thumbnail_url`.
 
 ---
 
-# Design Rules
+# UPSERT Rules & Data Integrity
 
-- UPSERT only
-- No duplicate posts
-- No duplicate media
-- No provider-specific tables
-- No direct SQL inside Services
-- Repositories are the only database layer
+1. **Unique Identification**: Posts are uniquely identified per connection by the composite key `(social_connection_id, external_id)`.
+2. **Non-Destructive Post Sync**: Existing posts are updated with fresh metrics and payloads; posts are never deleted during normal feed sync.
+3. **Media Sync**: Media attachments are matched by `(social_post_id, sort_order)`. Obsolete media records no longer present in the updated post payload are deleted (`detachMedia`).
+4. **Error Isolation**: An error during individual post upsert increments the `$failed` count without halting the outer connection sync loop.
+5. **Sync Audit Log**: Every sync run creates a `social_sync` record tracking `started_at`, `finished_at`, `status` (`running`, `finished`, `failed`), `items_created`, `items_updated`, `items_failed`, and error messages.
 
 ---
 
-# Future
+# Token Refresh in Synchronization
 
-Future providers should plug into the same Synchronizer without requiring schema changes.
+Prior to fetching provider data, the Synchronizer calls `ensureValidToken()`:
+
+- Uses a 5-minute safety buffer (`TOKEN_EXPIRY_BUFFER_SECONDS = 300`) against `token_expires_at`.
+- For **Instagram connections**: resolves parent connection (`parent_connection_id`), validates the parent Facebook Page token, and synchronizes the refreshed token to the Instagram connection.
+- For **Facebook connections**: exchanges the short-lived token via `FacebookOAuth`, updates `social_connection`, and automatically updates child Instagram connection tokens.
+- If token refresh fails, the connection status is set to `inactive`, the sync is marked `failed`, and an exception is raised.

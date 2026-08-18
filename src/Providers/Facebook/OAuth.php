@@ -232,12 +232,16 @@ final class OAuth
     private function redirectUri(): string
     {
         $redirectUri = $this->providerValue('redirectUri');
-        
+
         if (filter_var($redirectUri, FILTER_VALIDATE_URL)) {
             return $redirectUri;
         }
-        
-        return site_url(ltrim($redirectUri, '/'));
+
+        if (function_exists('site_url')) {
+            return site_url(ltrim($redirectUri, '/'));
+        }
+
+        return '/' . ltrim($redirectUri, '/');
     }
 
     private function graphVersion(): string

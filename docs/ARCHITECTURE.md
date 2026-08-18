@@ -2,338 +2,124 @@
 
 ## Overview
 
-TFL Social is a provider-based PHP package that aggregates social media content from multiple platforms into a unified local database.
+TFL Social is a provider-based PHP library that aggregates social media content from multiple platforms into a unified local database.
 
-The package is designed primarily for CodeIgniter 4 but remains framework-friendly and reusable in any PHP application.
+While built for CodeIgniter 4 integration via `Services::tflSocial()`, it remains framework-friendly and reusable across modern PHP 8.2+ environments.
 
-Applications never communicate directly with provider APIs. They communicate only with the TflSocial Manager.
-
----
-
-# Goals
-
-- Simple public API
-- Provider-based architecture
-- Database-first design
-- Multiple accounts
-- Multiple connections per account
-- Multiple providers
-- Normalized data model
-- Automatic synchronization
-- Automatic token management
-- Extensible
-- Composer installable
-- PSR-12 compliant
-
----
-
-# Current Providers
-
-- Facebook Pages
-- Instagram Business
-
----
-
-# Planned Providers
-
-- LinkedIn
-- YouTube
-- Threads
-- TikTok
-- X (Twitter)
-
----
-
-# Architecture
-
-```
-Application
-        │
-        ▼
- TflSocial Manager
-        │
-        ├────────────────────────────┐
-        ▼                            ▼
- Connection Manager           Feed Builder
-        │                            │
-        ▼                            ▼
- Provider Drivers           Local Database
-        │                            ▲
-        └──────────────┬─────────────┘
-                       ▼
-                 Synchronizer
-                       │
-                       ▼
-                Meta Graph API
-```
+Applications interact through the `TflSocial` entry point and fluent facades (`Connector`, `Synchronizer`, `FeedBuilder`, `ProviderManager`), maintaining strict separation of concerns across application layers.
 
 ---
 
 # Design Principles
 
-Applications never communicate directly with providers.
-
-Applications never communicate directly with the Graph API.
-
-Every provider returns normalized entities.
-
-All providers share the same synchronization pipeline.
-
-The Feed Builder always reads from the local database.
+1. **Isolation**: Applications never call provider APIs or Database Models directly.
+2. **Repository Pattern**: Repositories are the *only* component allowed to interact with CodeIgniter Models.
+3. **Service Layer**: Business logic, token lifecycle rules, and sync orchestrations reside strictly inside Services.
+4. **Normalized Storage**: All external platform items are mapped into standard `Post` and `Media` schema while preserving raw Graph JSON payloads in `raw_json`.
+5. **Token Parentage**: Instagram Business accounts share access token authority with their parent Facebook Page connection (`parent_connection_id`).
 
 ---
 
-# Public API
+# Component Architecture
 
-```php
-$social = service('tflSocial');
 ```
-
-### Account
-
-```php
-$social->account('thefoxlab');
-```
-
-### Connect
-
-```php
-$social->connect();
-```
-
-### Synchronize
-
-```php
-$social->sync();
-```
-
-### Feed
-
-```php
-$social->feed();
-```
-
-### Accounts
-
-```php
-$social->accounts();
-```
-
-### Providers
-
-```php
-$social->providers();
+                       Application
+                            │
+                            ▼
+                        TflSocial
+                            │
+       ┌────────────────────┼────────────────────┬────────────────────┐
+       ▼                    ▼                    ▼                    ▼
+   Connector           Synchronizer         FeedBuilder       ProviderManager
+       │                    │                    │                    │
+       ├──────────────┐     │                    │                    ▼
+       ▼              ▼     ▼                    ▼             ProviderRegistry
+  Meta Graph     Services (Business Logic)   Local Database           │
+  (Facebook /         │                           ▲                   ▼
+   Instagram)         ▼                           │            FacebookProvider
+                 Repositories (Persistence)       │
+                      │                           │
+                      ▼                           │
+                   Models ────────────────────────┘
 ```
 
 ---
 
-# Synchronization
+# Layer Responsibilities
 
-Current synchronization scope.
+### 1. Facades & Entry Points (`src/`)
 
-Facebook
+- **`TflSocial`**: Main entry point; manages current account context and creates service facades.
+- **`Manager`**: Wrapper class for DI / container management.
+- **`Connector`**: Handles OAuth flow, Facebook Page & Instagram Business discovery, connection persistence, token refresh checks, and live Graph API edge requests.
+- **`Synchronizer`**: Executes automated background data import, token validation, UPSERT mapping, and sync execution logging.
+- **`FeedBuilder`**: Fluent query builder for retrieving normalized posts from the local database (currently stubbed).
+- **`ProviderManager` & `ProviderRegistry`**: Provider registration and resolution hub.
 
-- Profile
-- Feed
+### 2. Services (`src/Services/`)
 
-Instagram
+- **`AccountService`**: Manages logical accounts (`social_account`).
+- **`ConnectionService`**: Handles connection state (`active`, `expired`, `inactive`, `disconnected`), token persistence, parent-child token propagation, and token expiration buffer calculations.
+- **`PostService`**: Manages post insertion, updates, and connection-scoped UPSERT logic.
+- **`MediaService`**: Manages post media attachments and sort-order sync.
+- **`SyncService`**: Records sync execution stats (`items_created`, `items_updated`, `items_failed`, `status`, `message`).
 
-- Profile
-- Media
+### 3. Repositories (`src/Repositories/`)
 
-The synchronizer performs UPSERT operations.
+- **`AbstractRepository`**: Generic CRUD repository base wrapping CodeIgniter `Model`.
+- **`AccountRepository`**, **`ConnectionRepository`**, **`PostRepository`**, **`MediaRepository`**, **`SyncRepository`**: Enforce type-safe entity operations and custom database query methods.
 
-Existing records are updated.
+### 4. Models & Entities (`src/Models/`, `src/Entities/`)
 
-New records are inserted.
+- **Models**: CodeIgniter 4 Models (`AccountModel`, `ConnectionModel`, `PostModel`, `MediaModel`, `SyncModel`) defining table names, primary keys, and allowed fields.
+- **Entities**: Domain objects (`Account`, `Connection`, `Post`, `Media`, `Sync`) encapsulating domain state and status constants.
 
-Records are never duplicated.
+### 5. Provider & Graph Layer (`src/Providers/`, `src/Http/`)
 
-Posts are never deleted.
-
----
-
-# Feed Builder
-
-The Feed Builder never calls provider APIs.
-
-It always reads from the local database.
-
-Example:
-
-```php
-$posts = $social
-    ->feed()
-    ->accounts([12,25])
-    ->platform(['facebook','instagram'])
-    ->latest()
-    ->limit(20)
-    ->get();
-```
-
-Supported filters.
-
-- account()
-- accounts()
-- all()
-- platform()
-- type()
-- from()
-- to()
-- latest()
-- oldest()
-- limit()
+- **`FacebookProvider`**: Implements `ProviderInterface`.
+- **`FacebookOAuth`**: Handles Meta OAuth 2.0 authorization code exchange and token lifespan expansion.
+- **`PageService` & `BusinessAccountService`**: Page listing and Instagram Business account discovery wrappers.
+- **`FacebookGraphService` & `InstagramGraphService`**: Low-level Meta Graph API endpoint wrappers returning `GraphResponse`, `GraphItem`, and `GraphCollection`.
+- **`Client`**: HTTP client wrapper configured via `Config\TflSocial`.
 
 ---
 
-# Normalized Entity
+# Data Flow Pipelines
 
-Every provider is mapped into the same structure.
+### Live Graph Edge Request Flow
 
 ```
-Post
+Application -> TflSocial -> Connector -> FacebookGraphService / InstagramGraphService
+  -> Client -> Meta Graph API (v23.0) -> GraphCollection / GraphResponse -> Application
+```
 
-id
+### Synchronization & UPSERT Pipeline
 
-provider
-
-external_id
-
-parent_external_id
-
-type
-
-message
-
-permalink
-
-published_at
-
-metrics
-
-media[]
-
-raw_json
+```
+Synchronizer -> ConnectionService (Check/Refresh Tokens)
+  -> FacebookGraphService / InstagramGraphService (Fetch Profile & Feed/Media)
+  -> Normalize to Post & Media Data Arrays
+  -> PostService->upsertPost() (Check social_connection_id + external_id)
+  -> MediaService->syncMedia() (Update/Insert media by sort_order, detach removed items)
+  -> SyncService (Record social_sync log and update last_synced_at)
 ```
 
 ---
 
-# Multiple Accounts
-
-Each account may contain multiple provider connections.
-
-Example.
+# Database Schema Relationships
 
 ```
-TheFoxLab
-    Facebook Page
-    Instagram Business
-
-Client A
-    Facebook Page
-
-Client B
-    Facebook Page
-    Instagram Business
+social_account (1) ───< social_connection (N) [parent_connection_id self-ref]
+                              │
+                              ├───< social_post (N) ───< social_media (N)
+                              │
+                              └───< social_sync (N)
 ```
 
 ---
 
-# Database
+# Version Information
 
-The package uses normalized tables.
-
-- social_account
-- social_connection
-- social_post
-- social_media
-- social_sync
-
-Provider-specific tables must never be created.
-
----
-
-# Token Management
-
-Providers are responsible for token management.
-
-The package automatically refreshes expired tokens before making Graph requests.
-
-Applications never manually refresh tokens.
-
----
-
-# Provider Responsibilities
-
-Each provider is responsible for:
-
-- OAuth
-- Token refresh
-- Graph requests
-- Mapping provider responses
-- Synchronization support
-
-Providers must never communicate with Models.
-
----
-
-# Repository Responsibilities
-
-Repositories are the only layer that communicates with Models.
-
-Services must never access Models directly.
-
-Providers must never access Models.
-
-Architecture.
-
-```
-Application
-    ↓
-TflSocial
-    ↓
-Services
-    ↓
-Repositories
-    ↓
-Models
-    ↓
-Database
-```
-
----
-
-# Future Extensibility
-
-Adding a new provider should only require:
-
-- Provider implementation
-- OAuth implementation
-- Mapper
-- Configuration
-
-No changes should be required to:
-
-- Feed Builder
-- Synchronizer
-- Public API
-- Database schema
-
----
-
-# Coding Standards
-
-- PHP 8.2+
-- Strict typing
-- PSR-12
-- SOLID
-- Dependency Injection
-- Reusable components
-- Framework friendly
-- Production ready
-
----
-
-# Version
-
-Architecture Version: 2.0
+- **Architecture Version**: 2.0
+- **PHP Requirement**: ^8.2
+- **Meta Graph API Version**: v23.0

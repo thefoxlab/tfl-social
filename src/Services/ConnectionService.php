@@ -21,6 +21,8 @@ use const JSON_THROW_ON_ERROR;
 
 final class ConnectionService
 {
+    private const TOKEN_EXPIRY_BUFFER_SECONDS = 300;
+
     public function __construct(
         private readonly ConnectionRepository $connections = new ConnectionRepository()
     ) {
@@ -230,7 +232,7 @@ final class ConnectionService
 
         $timestamp = strtotime($expiresAt);
 
-        return $timestamp !== false && $timestamp <= time();
+        return $timestamp !== false && $timestamp <= time() + self::TOKEN_EXPIRY_BUFFER_SECONDS;
     }
 
     private function connection(Entity $entity): Connection

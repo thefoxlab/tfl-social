@@ -190,7 +190,7 @@ final class Connector implements ConnectorInterface
                 'picture' => $page->picture(),
             ],
             accessToken: $page->accessToken(),
-            tokenExpiresAt: $this->expiresAt($this->facebookOAuthResponse()),
+            tokenExpiresAt: null,
             permissions: iterator_to_array($page->tasks(), false)
         );
 
@@ -460,6 +460,21 @@ final class Connector implements ConnectorInterface
     public function refreshToken(): Connection
     {
         $connection = $this->requiredPageConnection();
+
+        if (! $this->connectionService()->isTokenExpired($connection) || $connection->token_expires_at === null) {
+            foreach ($this->connectionService()->childConnections($this->connectionId($connection)) as $child) {
+                if ($child->provider === 'instagram') {
+                    $this->currentInstagramConnection = $this->connectionService()->updateTokens(
+                        connectionId: $this->connectionId($child),
+                        accessToken: $this->stringProperty($connection->access_token, 'Facebook Page access token is missing.'),
+                        tokenExpiresAt: is_string($connection->token_expires_at) ? $connection->token_expires_at : null
+                    );
+                }
+            }
+
+            return $connection;
+        }
+
         $accessToken = $this->stringProperty($connection->access_token, 'Facebook Page access token is missing.');
         $response = $this->facebookOAuth()->exchangeShortLivedTokenForLongLivedToken($accessToken);
         $this->currentConnection = $this->connectionService()->updateTokens(

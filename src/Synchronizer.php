@@ -6,6 +6,7 @@ namespace TheFoxLab\TflSocial;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use InvalidArgumentException;
 use JsonException;
 use Throwable;
 use TheFoxLab\TflSocial\Config\TflSocial;
@@ -97,23 +98,23 @@ final class Synchronizer implements SynchronizerInterface
 
         return $this->connections->activeConnections($this->account);
     }
+
     private function synchronizeConnection(Connection $connection): void
     {
-        $provider = $this->provider($connection);
         $sync = $this->syncs->startSync(connectionId: $this->connectionId($connection));
-        
+
         $created = 0;
         $updated = 0;
         $failed = 0;
-        
+
         try {
             $connection = $this->ensureValidToken($connection);
-            
+
             foreach ($this->fetchNormalizedPosts($connection) as $post) {
                 try {
                     $result = $this->posts->upsertPost($post['post']);
                     $this->media->syncMedia($result['post']->social_post_id, $post['media']);
-                    
+
                     if ($result['created']) {
                         $created++;
                     } else {
@@ -123,16 +124,16 @@ final class Synchronizer implements SynchronizerInterface
                     $failed++;
                 }
             }
-            
+
             $this->connections->updateLastSyncedAt($this->connectionId($connection), $this->now());
-            
+
             $this->syncs->finishSync(
                 $sync->social_sync_id,
                 'Synchronization completed.',
                 $created,
                 $updated,
                 $failed
-                );
+            );
         } catch (Throwable $exception) {
             $this->syncs->failSync(
                 $sync->social_sync_id,
@@ -140,66 +141,93 @@ final class Synchronizer implements SynchronizerInterface
                 $created,
                 $updated,
                 $failed + 1
-                );
-            
+            );
+
             throw $exception;
         }
     }
-    
+
     private function ensureValidToken(Connection $connection): Connection
     {
         if (! $this->connections->isTokenExpired($connection)) {
             return $connection;
         }
-        
+
+        try {
+            return $this->refreshToken($connection);
+        } catch (Throwable $exception) {
+            $this->connections->updateStatus($this->connectionId($connection), Connection::STATUS_INACTIVE);
+
+            throw $exception;
+        }
+    }
+
+    private function refreshToken(Connection $connection): Connection
+    {
         $provider = $this->provider($connection);
-        
+
         if ($provider === 'instagram') {
             $parentId = $connection->parent_connection_id;
-            
+
             if (is_int($parentId) || is_string($parentId)) {
                 $parent = $this->connections->getConnection($parentId);
-                
+
                 if ($parent !== null) {
                     $parent = $this->ensureValidToken($parent);
-                    
+
                     return $this->connections->updateTokens(
                         $this->connectionId($connection),
                         $this->stringValue($parent->access_token, 'Parent Facebook Page token is missing.'),
                         tokenExpiresAt: $this->nullableString($parent->token_expires_at)
-                        );
+                    );
                 }
             }
+
+            throw new InvalidArgumentException('Parent Facebook Page connection is required to refresh Instagram token.');
         }
         
         if ($provider !== 'facebook') {
             return $connection;
         }
-        
+
+        if (! $this->connections->isTokenExpired($connection) || $connection->token_expires_at === null) {
+            foreach ($this->connections->childConnections($this->connectionId($connection)) as $child) {
+                if ($this->provider($child) === 'instagram') {
+                    $this->connections->updateTokens(
+                        $this->connectionId($child),
+                        $this->stringValue($connection->access_token, 'Facebook Page access token is missing.'),
+                        tokenExpiresAt: $this->nullableString($connection->token_expires_at)
+                    );
+                }
+            }
+
+            return $connection;
+        }
+
         $response = (new FacebookOAuth($this->config, $this->client))
-        ->exchangeShortLivedTokenForLongLivedToken(
-            $this->stringValue($connection->access_token, 'Facebook access token is missing.')
+            ->exchangeShortLivedTokenForLongLivedToken(
+                $this->stringValue($connection->access_token, 'Facebook access token is missing.')
             );
-        
+
         $refreshed = $this->connections->updateTokens(
             $this->connectionId($connection),
             $this->stringValue($response->accessToken(), 'Facebook token refresh did not return a token.'),
             tokenExpiresAt: $this->formatDateTime($response->expiresAt())
-            );
-        
+        );
+
         foreach ($this->connections->childConnections($this->connectionId($refreshed)) as $child) {
             if ($this->provider($child) === 'instagram') {
                 $this->connections->updateTokens(
                     $this->connectionId($child),
                     $this->stringValue($refreshed->access_token, 'Facebook token refresh failed.'),
                     tokenExpiresAt: $this->nullableString($refreshed->token_expires_at)
-                    );
+                );
             }
         }
-        
+
         return $refreshed;
     }
-    
+
     /**
      * @return list<array{post: array<string, mixed>, media: list<array<string, mixed>>}>
      */
@@ -211,8 +239,7 @@ final class Synchronizer implements SynchronizerInterface
             default => [],
         };
     }
-    
-    
+
     /**
      * @return list<array{post: array<string, mixed>, media: list<array<string, mixed>>}>
      */
@@ -355,22 +382,21 @@ final class Synchronizer implements SynchronizerInterface
         ?string $publishedAt,
         array $metrics,
         array $raw
-        ): array
-        {
-            return [
-                'social_connection_id' => $this->connectionId($connection),
-                'provider' => $this->provider($connection),
-                'external_id' => $externalId,
-                'parent_external_id' => $this->nullableString($raw['parent_id'] ?? null),
-                'type' => $type,
-                'message' => $message,
-                'permalink' => $permalink,
-                'published_at' => $publishedAt,
-                'sync_time' => $this->now(),
-                'metrics' => $this->json($metrics),
-                'raw_json' => $this->json($raw),
-                'status' => Post::STATUS_ACTIVE,
-            ];
+    ): array {
+        return [
+            'social_connection_id' => $this->connectionId($connection),
+            'provider' => $this->provider($connection),
+            'external_id' => $externalId,
+            'parent_external_id' => $this->nullableString($raw['parent_id'] ?? null),
+            'type' => $type,
+            'message' => $message,
+            'permalink' => $permalink,
+            'published_at' => $publishedAt,
+            'sync_time' => $this->now(),
+            'metrics' => $this->json($metrics),
+            'raw_json' => $this->json($raw),
+            'status' => Post::STATUS_ACTIVE,
+        ];
     }
 
     /**
@@ -437,27 +463,27 @@ final class Synchronizer implements SynchronizerInterface
     private function facebookMedia(array $payload): array
     {
         $media = [];
-    
+
         if (! empty($payload['attachments']['data']) && is_array($payload['attachments']['data'])) {
             foreach ($payload['attachments']['data'] as $attachment) {
                 if (! is_array($attachment)) {
                     continue;
                 }
-    
+
                 $type = strtolower($this->nullableString($attachment['media_type'] ?? null) ?? 'image');
-    
+
                 $url = $this->nullableString(
                     $attachment['media']['image']['src'] ?? null
                 );
-    
+
                 if ($url === null) {
                     $url = $this->nullableString($attachment['unshimmed_url'] ?? null);
                 }
-    
+
                 if ($url === null) {
                     continue;
                 }
-    
+
                 $media[] = [
                     'type' => $type,
                     'url' => $url,
@@ -468,14 +494,14 @@ final class Synchronizer implements SynchronizerInterface
                 ];
             }
         }
-    
+
         if ($media !== []) {
             return $media;
         }
-    
+
         foreach (['full_picture', 'picture', 'source'] as $key) {
             $url = $this->nullableString($payload[$key] ?? null);
-    
+
             if ($url !== null) {
                 $media[] = $this->mediaData(
                     $url,
@@ -485,9 +511,10 @@ final class Synchronizer implements SynchronizerInterface
                 );
             }
         }
-    
+
         return $media;
     }
+
     /**
      * @param array<string, mixed> $payload
      *
@@ -496,13 +523,13 @@ final class Synchronizer implements SynchronizerInterface
     private function instagramMedia(array $payload): array
     {
         $url = $this->nullableString($payload['media_url'] ?? null);
-        
+
         if ($url === null) {
             return [];
         }
-        
+
         $type = strtolower($this->nullableString($payload['media_type'] ?? null) ?? 'image');
-        
+
         return [[
             'type' => in_array($type, ['video', 'reels'], true) ? 'video' : 'image',
             'url' => $url,
@@ -512,7 +539,7 @@ final class Synchronizer implements SynchronizerInterface
             'metadata' => $this->json($payload),
         ]];
     }
-    
+
     /**
      * @return list<array<string, mixed>>
      */
@@ -534,47 +561,45 @@ final class Synchronizer implements SynchronizerInterface
         ?string $thumbnail = null,
         ?string $altText = null,
         array $metadata = []
-        ): array
-        {
-            if ($url === null) {
-                return [];
-            }
-            
-            return [
-                $this->mediaData(
-                    $url,
-                    $type,
-                    $thumbnail,
-                    [],
-                    $altText,
-                    $metadata
-                    ),
-            ];
+    ): array {
+        if ($url === null) {
+            return [];
+        }
+
+        return [
+            $this->mediaData(
+                $url,
+                $type,
+                $thumbnail,
+                [],
+                $altText,
+                $metadata
+            ),
+        ];
     }
 
     /**
-         * @param list<array<string, mixed>> $existing
-         *
-         * @return array<string, mixed>
-         */
-        private function mediaData(
-            string $url,
-            string $type,
-            ?string $thumbnail,
-            array $existing,
-            ?string $altText = null,
-            array $metadata = []
-        ): array
-        {
-            return [
-                'type' => $type,
-                'url' => $url,
-                'thumbnail_url' => $thumbnail,
-                'alt_text' => $altText,
-                'sort_order' => count($existing),
-                'metadata' => $this->json($metadata),
-            ];
-        }
+     * @param list<array<string, mixed>> $existing
+     *
+     * @return array<string, mixed>
+     */
+    private function mediaData(
+        string $url,
+        string $type,
+        ?string $thumbnail,
+        array $existing,
+        ?string $altText = null,
+        array $metadata = []
+    ): array {
+        return [
+            'type' => $type,
+            'url' => $url,
+            'thumbnail_url' => $thumbnail,
+            'alt_text' => $altText,
+            'sort_order' => count($existing),
+            'metadata' => $this->json($metadata),
+        ];
+    }
 
     private function provider(Connection $connection): string
     {
@@ -586,7 +611,7 @@ final class Synchronizer implements SynchronizerInterface
         $connectionId = $connection->social_connection_id;
 
         if (! is_int($connectionId) && ! is_string($connectionId)) {
-            throw new \InvalidArgumentException('Connection id is missing.');
+            throw new InvalidArgumentException('Connection id is missing.');
         }
 
         return $connectionId;
@@ -595,7 +620,7 @@ final class Synchronizer implements SynchronizerInterface
     private function stringValue(mixed $value, string $message): string
     {
         if (! is_string($value) || trim($value) === '') {
-            throw new \InvalidArgumentException($message);
+            throw new InvalidArgumentException($message);
         }
 
         return $value;

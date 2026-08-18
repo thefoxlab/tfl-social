@@ -2,337 +2,156 @@
 
 ## Overview
 
-TFL Social stores normalized social media data independent of the provider.
+TFL Social uses a provider-independent normalized schema to store social media accounts, connections, posts, media items, and synchronization logs in a relational database.
 
-Applications never interact directly with provider APIs or provider-specific data structures.
-
-The package stores normalized entities while preserving the complete provider payload for future compatibility.
+Applications interact with this data via Repositories and Services, ensuring direct SQL and provider-specific details remain isolated.
 
 ---
 
-# Entities
-
-## Account
-
-Represents the logical owner of one or more social connections.
-
-Examples:
-
-- Company
-- Lodge
-- Hotel
-- Website
-- Brand
-
-One Account may contain multiple Connections.
-
----
-
-## Connection
-
-Represents a connected social media account.
-
-Examples:
-
-- Facebook Page
-- Instagram Business Account
-
-Each Connection belongs to one Account.
-
-Connections manage:
-
-- Access Tokens
-- Token Refresh
-- Synchronization State
-
----
-
-## Post
-
-Represents one normalized social media post.
-
-Each Post belongs to one Connection.
-
-Posts are uniquely identified by:
+# Entity Relationships
 
 ```
-social_connection_id + external_id
-```
-
-The Synchronizer always performs UPSERT operations.
-
----
-
-## Media
-
-Represents media attached to a Post.
-
-Examples:
-
-- Image
-- Video
-- Carousel Item
-
-Each Post may contain zero or more Media records.
-
----
-
-## Sync
-
-Represents one synchronization execution.
-
-A Sync belongs to one Connection.
-
-It stores synchronization history and statistics.
-
----
-
-# Relationships
-
-```
-Account
-    │
-    ▼
-Connection
-    │
-    ▼
-Post
-    │
-    ▼
-Media
-
-Connection
-    │
-    ▼
-Sync
+social_account (1) ───< social_connection (N) [parent_connection_id self-ref]
+                              │
+                              ├───< social_post (N) ───< social_media (N)
+                              │
+                              └───< social_sync (N)
 ```
 
 ---
 
-# Physical Tables
+# Physical Tables & Schema Definitions
 
-## social_account
+Migration file: `src/Database/Migrations/2026-07-10-000001_CreateSocialTables.php`
 
-Stores logical application accounts.
+### 1. `social_account`
 
----
+Stores logical application accounts (e.g. client, brand, lodge, website owner).
 
-## social_connection
-
-Stores provider connections.
-
-Each connection contains:
-
-- Provider
-- External ID
-- Access Token
-- Token Expiry
-- Last Sync Time
+| Field | Type | Attributes | Description |
+|---|---|---|---|
+| `social_account_id` | INT(10) | UNSIGNED, AUTO_INCREMENT, PRIMARY KEY | Unique account identifier |
+| `name` | VARCHAR(255) | NOT NULL | Account name |
+| `status` | VARCHAR(50) | DEFAULT 'active', KEY | Account status (`active`) |
+| `metadata` | TEXT | NULLABLE | JSON or text metadata |
+| `created_time` | DATETIME | NULLABLE | Record creation timestamp |
+| `updated_time` | DATETIME | NULLABLE | Record update timestamp |
+| `deleted_time` | DATETIME | NULLABLE | Soft delete timestamp |
 
 ---
 
-## social_post
+### 2. `social_connection`
 
-Stores normalized provider posts.
+Stores connected provider accounts (e.g. Facebook Page, Instagram Business Account).
 
-Current schema:
+| Field | Type | Attributes | Description |
+|---|---|---|---|
+| `social_connection_id` | INT(10) | UNSIGNED, AUTO_INCREMENT, PRIMARY KEY | Unique connection identifier |
+| `social_account_id` | INT(10) | UNSIGNED, NULLABLE, FK(social_account) | Owner account ID |
+| `parent_connection_id` | INT(10) | UNSIGNED, NULLABLE, FK(social_connection) | Parent connection ID (e.g. Facebook Page parent for Instagram) |
+| `provider` | VARCHAR(50) | NOT NULL, KEY | Provider slug (`facebook`, `instagram`) |
+| `external_id` | VARCHAR(191) | NOT NULL | Provider external account ID |
+| `external_name` | VARCHAR(255) | NULLABLE | Display name / username |
+| `access_token` | TEXT | NULLABLE | OAuth access token |
+| `refresh_token` | TEXT | NULLABLE | OAuth refresh token |
+| `token_expires_at` | DATETIME | NULLABLE | Token expiry timestamp |
+| `permissions` | JSON | NULLABLE | Granted OAuth permissions |
+| `status` | VARCHAR(50) | DEFAULT 'active', KEY | Connection status (`active`, `expired`, `inactive`, `disconnected`) |
+| `connected_at` | DATETIME | NULLABLE | Connection date |
+| `last_synced_at` | DATETIME | NULLABLE | Last successful synchronization timestamp |
+| `metadata` | TEXT | NULLABLE | JSON metadata (category, picture, profile_picture) |
+| `created_time` | DATETIME | NULLABLE | Record creation timestamp |
+| `updated_time` | DATETIME | NULLABLE | Record update timestamp |
+| `deleted_time` | DATETIME | NULLABLE | Soft delete timestamp |
 
-```
-social_post_id
-
-social_connection_id
-
-provider
-external_id
-parent_external_id
-
-type
-
-message
-
-permalink
-
-published_at
-sync_time
-
-metrics
-raw_json
-
-status
-
-created_time
-updated_time
-deleted_time
-```
+*Indexes:*
+- UNIQUE KEY on `(provider, external_id)`
 
 ---
 
-## social_media
+### 3. `social_post`
 
-Stores media belonging to a post.
+Stores normalized social posts from all platforms.
 
-Current schema.
+| Field | Type | Attributes | Description |
+|---|---|---|---|
+| `social_post_id` | INT(10) | UNSIGNED, AUTO_INCREMENT, PRIMARY KEY | Unique post identifier |
+| `social_connection_id` | INT(10) | UNSIGNED, NOT NULL, FK(social_connection) | Associated connection ID |
+| `provider` | VARCHAR(50) | NOT NULL, KEY | Provider slug (`facebook`, `instagram`) |
+| `external_id` | VARCHAR(191) | NOT NULL, KEY | External provider post/item ID |
+| `parent_external_id` | VARCHAR(191) | NULLABLE, KEY | Parent post/item external ID |
+| `type` | VARCHAR(50) | NULLABLE | Normalized item type (`post`, `profile`, `image`, `video`, `carousel_album`, etc.) |
+| `message` | TEXT | NULLABLE | Post text content / message |
+| `caption` | TEXT | NULLABLE | Alternative caption field |
+| `permalink` | VARCHAR(2048) | NULLABLE | Direct URL to original social post |
+| `published_at` | DATETIME | NULLABLE, KEY | Publication timestamp |
+| `sync_time` | DATETIME | NULLABLE, KEY | Last UPSERT sync timestamp |
+| `metrics` | TEXT | NULLABLE | JSON string storing engagement metrics (e.g. `shares`, `like_count`, `comments_count`) |
+| `raw_json` | TEXT | NULLABLE | Complete original JSON payload from Graph API |
+| `status` | VARCHAR(50) | DEFAULT 'active', KEY | Post status (`active`) |
+| `created_time` | DATETIME | NULLABLE | Record creation timestamp |
+| `updated_time` | DATETIME | NULLABLE | Record update timestamp |
+| `deleted_time` | DATETIME | NULLABLE | Soft delete timestamp |
 
-```
-social_media_id
-
-social_post_id
-
-type
-url
-thumbnail_url
-alt_text
-
-sort_order
-
-metadata
-
-created_time
-updated_time
-deleted_time
-```
-
----
-
-## social_sync
-
-Stores synchronization history.
-
-Current schema.
-
-```
-social_sync_id
-
-social_connection_id
-
-status
-
-started_at
-finished_at
-
-items_created
-items_updated
-items_failed
-
-message
-
-created_time
-```
+*Indexes:*
+- UNIQUE KEY on `(social_connection_id, external_id)`
 
 ---
 
-# Provider Independence
+### 4. `social_media`
 
-The database must never contain provider-specific tables.
+Stores media items (images, videos, thumbnails) associated with a post.
 
-Avoid tables such as:
-
-- facebook_posts
-- instagram_posts
-- linkedin_posts
-
-Every provider maps into the same normalized schema.
-
----
-
-# Multiple Accounts
-
-One Account
-
-↓
-
-Many Connections
-
-↓
-
-Many Posts
-
-↓
-
-Many Media
+| Field | Type | Attributes | Description |
+|---|---|---|---|
+| `social_media_id` | INT(10) | UNSIGNED, AUTO_INCREMENT, PRIMARY KEY | Unique media identifier |
+| `social_post_id` | INT(10) | UNSIGNED, NOT NULL, FK(social_post) | Parent post ID |
+| `type` | VARCHAR(50) | NULLABLE | Media type (`image`, `video`) |
+| `url` | VARCHAR(2048) | NULLABLE | Direct media asset URL |
+| `thumbnail_url` | VARCHAR(2048) | NULLABLE | Video or item thumbnail URL |
+| `alt_text` | VARCHAR(255) | NULLABLE | Title or alternative text |
+| `sort_order` | INT(10) | UNSIGNED, DEFAULT 0 | Media sequence order within post |
+| `metadata` | TEXT | NULLABLE | JSON metadata for attachment details |
+| `created_time` | DATETIME | NULLABLE | Record creation timestamp |
+| `updated_time` | DATETIME | NULLABLE | Record update timestamp |
+| `deleted_time` | DATETIME | NULLABLE | Soft delete timestamp |
 
 ---
 
-# Multiple Providers
+### 5. `social_sync`
 
-One Account may contain multiple providers.
+Stores synchronization history logs and execution metrics.
 
-Current:
-
-- Facebook
-- Instagram
-
-Future:
-
-- LinkedIn
-- YouTube
-- Threads
-- TikTok
-- X (Twitter)
-
----
-
-# Storage Principles
-
-Normalize commonly used fields.
-
-Preserve the complete provider payload inside:
-
-```
-raw_json
-```
-
-Store engagement counts inside:
-
-```
-metrics
-```
-
-Applications should never depend directly on provider response structures.
+| Field | Type | Attributes | Description |
+|---|---|---|---|
+| `social_sync_id` | INT(10) | UNSIGNED, AUTO_INCREMENT, PRIMARY KEY | Unique sync log identifier |
+| `social_account_id` | INT(10) | UNSIGNED, NULLABLE, FK(social_account) | Target account ID |
+| `social_connection_id` | INT(10) | UNSIGNED, NULLABLE, FK(social_connection) | Target connection ID |
+| `provider` | VARCHAR(50) | NULLABLE, KEY | Provider slug |
+| `status` | VARCHAR(50) | DEFAULT 'pending', KEY | Execution status (`running`, `finished`, `failed`) |
+| `started_at` | DATETIME | NULLABLE | Execution start time |
+| `finished_at` | DATETIME | NULLABLE | Execution finish time |
+| `items_created` | INT(10) | UNSIGNED, DEFAULT 0 | Count of newly inserted posts |
+| `items_updated` | INT(10) | UNSIGNED, DEFAULT 0 | Count of updated posts |
+| `items_failed` | INT(10) | UNSIGNED, DEFAULT 0 | Count of failed post operations |
+| `message` | TEXT | NULLABLE | Log or error message |
+| `raw_json` | TEXT | NULLABLE | Diagnostic JSON payload |
+| `created_time` | DATETIME | NULLABLE | Record creation timestamp |
+| `updated_time` | DATETIME | NULLABLE | Record update timestamp |
 
 ---
 
-# Synchronization
+# Foreign Key Cascade Rules
 
-Synchronization is always performed per Connection.
-
-The Synchronizer:
-
-- Inserts new posts
-- Updates existing posts
-- Updates media
-- Never creates duplicates
-- Never deletes posts
-
----
-
-# Indexing
-
-Important indexes include:
-
-- social_connection_id
-- provider
-- external_id
-- parent_external_id
-- published_at
-- sync_time
-- status
-
----
-
-# Future Compatibility
-
-The data model is provider-independent.
-
-Adding a new provider should require:
-
-- Provider implementation
-- Mapping layer
-
-The database schema should remain unchanged.
+1. `social_connection.social_account_id` ➔ `social_account.social_account_id` (`ON DELETE CASCADE`, `ON UPDATE SET NULL`)
+2. `social_connection.parent_connection_id` ➔ `social_connection.social_connection_id` (`ON DELETE CASCADE`, `ON UPDATE SET NULL`)
+3. `social_post.social_connection_id` ➔ `social_connection.social_connection_id` (`ON DELETE CASCADE`, `ON UPDATE CASCADE`)
+4. `social_media.social_post_id` ➔ `social_post.social_post_id` (`ON DELETE CASCADE`, `ON UPDATE CASCADE`)
+5. `social_sync.social_account_id` ➔ `social_account.social_account_id` (`ON DELETE CASCADE`, `ON UPDATE SET NULL`)
+6. `social_sync.social_connection_id` ➔ `social_connection.social_connection_id` (`ON DELETE CASCADE`, `ON UPDATE SET NULL`)
 
 ---
 
 # Version
 
-Data Model Version: 2.0
+- **Data Model Version**: 2.0

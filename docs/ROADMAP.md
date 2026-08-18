@@ -2,217 +2,136 @@
 
 ## Vision
 
-Build a provider-independent social media synchronization package that aggregates content from multiple social platforms into a normalized local database with a stable public API.
-
-The package should be reusable in any PHP application while providing first-class CodeIgniter 4 integration.
+Build a provider-independent social media synchronization and aggregation library for PHP 8.2+ and CodeIgniter 4, enabling application developers to connect social channels, auto-sync content into normalized local storage, and serve unified feeds.
 
 ---
 
-# Current Status
+# Development Milestones & Status
 
-## Foundation
+## 1. Foundation & Configuration
 
-- Composer package
-- PSR-4 autoloading
-- CodeIgniter 4 integration
-- Configuration
-- Service registration
-- TflSocial Manager
-- Contracts
-- Provider architecture
-- Exceptions
+- Composer package structure (`thefoxlab/tfl-social`)
+- PSR-4 namespace autoloading (`TheFoxLab\TflSocial\`)
+- CodeIgniter 4 Service Provider (`Services::tflSocial()`)
+- Configuration class (`Config\TflSocial`)
+- Entry point classes (`TflSocial`, `Manager`)
+- Interface definitions (`ConnectorInterface`, `SynchronizerInterface`, `FeedBuilderInterface`, `ProviderManagerInterface`)
+- Provider registry & manager (`ProviderManager`, `ProviderRegistry`, `FacebookProvider`)
+- Exception hierarchy (`RepositoryException`, `HttpException`, `OAuthException`)
 
 ✔ Complete
 
 ---
 
-## Database Layer
+## 2. Database Layer & Data Model
 
-- Migrations
-- Models
-- Entities
-- Repositories
-- Normalized schema
-
-✔ Complete
-
----
-
-## Connection Management
-
-- OAuth
-- Facebook Login
-- Facebook Pages
-- Instagram Business discovery
-- Multi-account support
-- Multi-connection support
-- Connection persistence
+- Database Migration (`CreateSocialTables`)
+- Normalized tables (`social_account`, `social_connection`, `social_post`, `social_media`, `social_sync`)
+- Foreign key constraints & cascade rules
+- CodeIgniter Models (`AccountModel`, `ConnectionModel`, `PostModel`, `MediaModel`, `SyncModel`)
+- Domain Entities (`Account`, `Connection`, `Post`, `Media`, `Sync`)
+- Repositories (`AccountRepository`, `ConnectionRepository`, `PostRepository`, `MediaRepository`, `SyncRepository`)
+- Service layer (`AccountService`, `ConnectionService`, `PostService`, `MediaService`, `SyncService`)
 
 ✔ Complete
 
 ---
 
-## Provider Layer
+## 3. Connection & OAuth Management
 
-Facebook
-
-- Profile
-- Feed
-- Posts
-- Photos
-- Videos
-- Albums
-
-Instagram
-
-- Profile
-- Media
-- Media By ID
-- Reels
-- Carousel
-- Stories
-- Hashtag Search
-- Recent Hashtag Media
-- Own Media By Hashtag
+- Meta OAuth 2.0 flow (`FacebookOAuth`)
+- CSRF state generation and validation
+- Short-lived to long-lived access token exchange
+- Facebook Page discovery (`PageService`)
+- Instagram Business account discovery (`BusinessAccountService`)
+- Multi-account logical scoping (`AccountService`)
+- Connection persistence & parent connection linking (`parent_connection_id`)
 
 ✔ Complete
 
 ---
 
-# Current Development
+## 4. Live Graph API Wrappers
 
-## Automatic Token Management
+- Meta Graph API HTTP Client (`Client`)
+- Facebook Graph Edges: Profile, Feed, Posts, Photos, Videos, Albums, Events, Reviews
+- Instagram Graph Edges: Profile, Media, MediaById, Reels, Carousel, Stories, OwnMediaByHashtag, HashtagSearch, RecentHashtagMedia
+- Response object wrappers (`GraphResponse`, `GraphItem`, `GraphCollection`, `Pagination`, `FeatureUnavailableResponse`)
 
-- Transparent token refresh
-- Automatic retry
-- Connection status management
-
-🚧 In Progress
-
----
-
-## Synchronizer
-
-- Facebook Profile
-- Facebook Feed
-- Instagram Profile
-- Instagram Media
-- UPSERT support
-- Media synchronization
-- Sync logging
-
-🚧 In Progress
+✔ Complete
 
 ---
 
-## Feed Builder
+## 5. Automatic Token Management
 
-The Feed Builder should read only from the local database.
+- Pre-request token expiry check with 5-minute buffer (`TOKEN_EXPIRY_BUFFER_SECONDS = 300`)
+- Pre-request automatic token refresh in `Connector`
+- Auto-refresh within `Synchronizer` pipeline
+- Parent-to-child token propagation (Facebook Page token updated ➔ Child Instagram Business token updated)
+- Connection status updates (`active`, `expired`, `inactive`, `disconnected`)
 
-Features
-
-- Latest
-- Oldest
-- Account filters
-- Multiple accounts
-- Platform filters
-- Type filters
-- Pagination
-
-🚧 Planned
+✔ Complete
 
 ---
 
-## Scheduler
+## 6. Synchronizer Engine
 
-- Manual synchronization
-- Scheduled synchronization
-- Cron support
-- Incremental synchronization
+- Connection target resolution (`account`, `connection`, `all`)
+- Profile and feed fetchers for Facebook & Instagram
+- Post normalization mapper & engagement metric extractor
+- Connection-scoped UPSERT logic (`social_connection_id` + `external_id`)
+- Media attachment synchronization & sort order management
+- Sync execution log recording (`social_sync` stats: `items_created`, `items_updated`, `items_failed`)
+- Update connection `last_synced_at` timestamp
 
-🚧 Planned
+✔ Complete
 
 ---
 
-## Widget API
+## 7. Feed Builder (Local DB Feed Querying)
 
-- JSON endpoints
-- Feed API
-- Filtering
-- Pagination
+- Fluent builder interface (`account`, `accounts`, `all`, `platform`, `type`, `from`, `to`, `limit`, `offset`, `orderBy`, `latest`, `oldest`, `get`)
+- Local database feed query implementation in `FeedBuilder::get()`
+
+🚧 Incomplete (Class interface exists, but database querying method is currently stubbed and returns `[]`)
+
+---
+
+## 8. Scheduler & Background Execution
+
+- Automated background cron runner for synchronization
+- Incremental sync options
+- Event triggers / queue integration
 
 📋 Planned
 
 ---
 
-## JavaScript Widgets
+## 9. Widget API & Frontend Components
 
-- Grid
-- Masonry
-- Carousel
-- Responsive layouts
-- Theme support
+- Feed REST API controllers / JSON endpoints
+- Frontend JavaScript widgets (Grid, Masonry, Carousel)
+- Customizable CSS themes
 
 📋 Planned
 
 ---
 
-# Future Providers
+## 10. Additional Provider Drivers
 
-- LinkedIn
-- Threads
-- YouTube
-- TikTok
-- X (Twitter)
+- LinkedIn Provider
+- Threads Provider
+- YouTube Provider
+- TikTok Provider
+- X (Twitter) Provider
 
----
-
-# Future Features
-
-- Webhooks
-- Queue support
-- Analytics
-- AI content generation
-- Search
-- Hashtag feeds
-- Content moderation
-- Multi-language support
-- Widget Builder
-- Theme Builder
+📋 Planned
 
 ---
 
-# Version Roadmap
+# Versioning Roadmap
 
-## Version 0.9
-
-- Automatic token refresh
-- Synchronizer
-- Feed Builder
-
-## Version 1.0
-
-- Scheduler
-- Widget API
-- Documentation
-- Testing
-- Performance
-- Security review
-- Production release
-
----
-
-# Development Principles
-
-- Provider independent
-- Database-first architecture
-- Stable public API
-- SOLID
-- PSR-12
-- Strict typing
-- Dependency Injection
-- Repository pattern
-- Framework friendly
-- Composer installable
-- Backwards compatible
-- Production ready
+- **v2.0.0-beta**: Core architecture, Meta integration, OAuth, Synchronizer, Repositories, Models, Migrations (Current codebase).
+- **v2.1.0**: Complete `FeedBuilder` database query implementation and local feed test suite.
+- **v2.2.0**: Scheduler & CLI command integrations.
+- **v3.0.0**: Additional provider drivers (LinkedIn, YouTube, X).
