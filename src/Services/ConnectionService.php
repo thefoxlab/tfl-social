@@ -56,7 +56,6 @@ final class ConnectionService
             'refresh_token' => $refreshToken,
             'token_expires_at' => $tokenExpiresAt,
             'permissions' => $permissions === [] ? null : $this->encodeMetadata($permissions),
-            'status' => Connection::STATUS_ACTIVE,
             'connected_at' => $this->now(),
             'metadata' => $metadata === [] ? null : $this->encodeMetadata($metadata),
         ];
