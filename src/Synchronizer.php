@@ -133,6 +133,8 @@ final class Synchronizer implements SynchronizerInterface
                 }
             }
 
+            $this->refreshExpiredMedia($connection);
+
             $this->connections->updateLastSyncedAt($this->connectionId($connection), $this->now());
 
             $this->syncs->finishSync(
@@ -671,6 +673,20 @@ final class Synchronizer implements SynchronizerInterface
             return json_encode($data, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
             return '{}';
+        }
+    }
+
+    /**
+     * Refreshes expired Meta CDN media URLs for the connection without blocking feed sync.
+     */
+    private function refreshExpiredMedia(Connection $connection): int
+    {
+        try {
+            $limit = (int) ($this->config->sync['mediaRefreshLimit'] ?? 50);
+
+            return $this->media->refreshExpiredMediaForConnection($connection, $limit);
+        } catch (Throwable) {
+            return 0;
         }
     }
 }

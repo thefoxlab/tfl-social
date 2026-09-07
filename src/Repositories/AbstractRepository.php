@@ -156,7 +156,7 @@ abstract class AbstractRepository
         return $this->primaryKey;
     }
 
-    private function ensureEntity(mixed $result): Entity
+    protected function ensureEntity(mixed $result): Entity
     {
         if (! $result instanceof Entity) {
             throw new RepositoryException('Model did not return an entity instance.');
@@ -170,7 +170,7 @@ abstract class AbstractRepository
      *
      * @return list<Entity>
      */
-    private function ensureEntityList(array $results): array
+    protected function ensureEntityList(array $results): array
     {
         $entities = [];
 

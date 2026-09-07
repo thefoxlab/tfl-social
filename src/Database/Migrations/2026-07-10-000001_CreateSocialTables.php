@@ -310,6 +310,10 @@ class CreateSocialTables extends Migration
                 'type' => 'TEXT',
                 'null' => true,
             ],
+            'media_refresh_at' => [
+                'type' => 'DATETIME',
+                'null' => true,
+            ],
             'created_time' => [
                 'type' => 'DATETIME',
                 'null' => true,
@@ -326,6 +330,7 @@ class CreateSocialTables extends Migration
 
         $this->forge->addKey('social_media_id', true);
         $this->forge->addKey('social_post_id');
+        $this->forge->addKey('media_refresh_at');
         $this->forge->addForeignKey(
             'social_post_id',
             'social_post',

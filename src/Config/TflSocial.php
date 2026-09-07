@@ -51,6 +51,7 @@ class TflSocial extends BaseConfig
     public array $sync = [
         'batchSize' => 50,
         'timeout' => 30,
+        'mediaRefreshLimit' => 50,
     ];
 
     public function __construct()

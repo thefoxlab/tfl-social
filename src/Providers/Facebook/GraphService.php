@@ -46,6 +46,15 @@ final class GraphService
         )));
     }
 
+    public function postById(Connection $pageConnection, string $postId, ?GraphRequestOptions $options = null): GraphResponse
+    {
+        return new GraphResponse($this->payload($this->get(
+            '/' . $postId,
+            $pageConnection,
+            ($options ?? GraphRequestOptions::make())->withDefaultFields(GraphFields::facebookFeed())
+        )));
+    }
+
     public function edge(Connection $pageConnection, string $edge, ?GraphRequestOptions $options = null): GraphCollection
     {
         return GraphCollection::fromPayload($this->payload($this->get(

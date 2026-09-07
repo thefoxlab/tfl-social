@@ -19,6 +19,7 @@ class Media extends Entity implements Arrayable, JsonSerializable
         'alt_text' => null,
         'sort_order' => null,
         'metadata' => null,
+        'media_refresh_at' => null,
         'created_time' => null,
         'updated_time' => null,
         'deleted_time' => null,

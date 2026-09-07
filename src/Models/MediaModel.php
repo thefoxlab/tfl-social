@@ -23,6 +23,7 @@ class MediaModel extends Model
         'alt_text',
         'sort_order',
         'metadata',
+        'media_refresh_at',
     ];
 
     protected $useTimestamps = true;
