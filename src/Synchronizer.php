@@ -166,7 +166,7 @@ final class Synchronizer implements SynchronizerInterface
         try {
             return $this->refreshToken($connection);
         } catch (Throwable $exception) {
-            $this->connections->updateStatus($this->connectionId($connection), Connection::STATUS_INACTIVE);
+            $this->connections->updateStatus($this->connectionId($connection), STATUS_INACTIVE);
 
             throw $exception;
         }
@@ -405,7 +405,7 @@ final class Synchronizer implements SynchronizerInterface
             'sync_time' => $this->now(),
             'metrics' => $this->json($metrics),
             'raw_json' => $this->json($raw),
-            'status' => Post::STATUS_ACTIVE,
+            'status' => STATUS_ACTIVE,
         ];
     }
 

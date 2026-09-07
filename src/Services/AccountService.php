@@ -62,7 +62,7 @@ final class AccountService
 
         return $this->createAccount([
             'name' => $name,
-            'status' => Account::STATUS_ACTIVE,
+            'status' => STATUS_ACTIVE,
         ]);
     }
 

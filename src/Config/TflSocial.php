@@ -6,6 +6,8 @@ namespace TheFoxLab\TflSocial\Config;
 
 use CodeIgniter\Config\BaseConfig;
 
+require_once __DIR__ . '/Constants.php';
+
 class TflSocial extends BaseConfig
 {
     public string $accountTable = 'social_account';

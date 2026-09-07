@@ -9,7 +9,6 @@ use JsonSerializable;
 use TheFoxLab\TflSocial\Contracts\Arrayable;
 class Post extends Entity implements Arrayable, JsonSerializable
 {
-    public const STATUS_ACTIVE = '1';
     
     protected $attributes = [
         'social_post_id' => null,

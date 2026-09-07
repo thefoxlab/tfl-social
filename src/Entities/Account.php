@@ -10,7 +10,6 @@ use TheFoxLab\TflSocial\Contracts\Arrayable;
 
 class Account extends Entity implements Arrayable, JsonSerializable
 {
-    public const STATUS_ACTIVE = '1';
 
     protected $attributes = [
         'social_account_id' => null,

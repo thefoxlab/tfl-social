@@ -21,6 +21,9 @@
 		"php" : "^8.2"
 	},
 	"autoload" : {
+		"files" : [
+			"src/Config/Constants.php"
+		],
 		"psr-4" : {
 			"TheFoxLab\\TflSocial\\" : "src/"
 		}

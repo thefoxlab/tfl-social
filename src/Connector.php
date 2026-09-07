@@ -508,7 +508,7 @@ final class Connector implements ConnectorInterface
 
         $this->currentConnection = $this->connectionService()->updateStatus(
             $this->connectionId($connection),
-            Connection::STATUS_ACTIVE
+            STATUS_ACTIVE
         );
 
         return $this->currentConnection;

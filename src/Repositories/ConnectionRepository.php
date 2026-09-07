@@ -38,7 +38,7 @@ final class ConnectionRepository extends AbstractRepository
             [
                 'social_account_id' => $accountId,
                 'provider' => $provider,
-                'status' => Connection::STATUS_ACTIVE,
+                'status' => STATUS_ACTIVE,
             ],
             'connected_at DESC'
         );
@@ -50,7 +50,7 @@ final class ConnectionRepository extends AbstractRepository
     public function findActiveConnections(?int $accountId = null): array
     {
         $criteria = [
-            'status' => Connection::STATUS_ACTIVE,
+            'status' => STATUS_ACTIVE,
         ];
 
         if ($accountId !== null) {

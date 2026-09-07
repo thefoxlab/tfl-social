@@ -48,7 +48,7 @@ final class MediaRepository extends AbstractRepository
         $builder->select("{$mediaTable}.*")
             ->join($postTable, "{$postTable}.social_post_id = {$mediaTable}.social_post_id")
             ->where("{$postTable}.social_connection_id", (int) $connectionId)
-            ->where("{$postTable}.status", defined('STATUS_ACTIVE') ? STATUS_ACTIVE : '1')
+            ->where("{$postTable}.status", STATUS_ACTIVE)
             ->where("{$mediaTable}.media_refresh_at IS NOT NULL")
             ->where("{$mediaTable}.media_refresh_at <=", $now)
             ->where("{$mediaTable}.deleted_time", null)
