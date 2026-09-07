@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace TheFoxLab\TflSocial\Repositories;
 
 use CodeIgniter\Entity\Entity;
+use TheFoxLab\TflSocial\Entities\Post;
 use TheFoxLab\TflSocial\Models\MediaModel;
 
 final class MediaRepository extends AbstractRepository
@@ -47,7 +48,7 @@ final class MediaRepository extends AbstractRepository
         $builder->select("{$mediaTable}.*")
             ->join($postTable, "{$postTable}.social_post_id = {$mediaTable}.social_post_id")
             ->where("{$postTable}.social_connection_id", (int) $connectionId)
-            ->where("{$postTable}.status", 'active')
+            ->where("{$postTable}.status", Post::STATUS_ACTIVE)
             ->where("{$mediaTable}.media_refresh_at IS NOT NULL")
             ->where("{$mediaTable}.media_refresh_at <=", $now)
             ->where("{$mediaTable}.deleted_time", null)
