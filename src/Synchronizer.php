@@ -264,7 +264,8 @@ final class Synchronizer implements SynchronizerInterface
         $isHistoryDone = (bool) ($cursor['is_completed'] ?? false);
 
         // Phase 1: Always fetch the latest page to capture new posts.
-        $latestOptions = GraphRequestOptions::make(limit: 100);
+        // Note: Meta limits Facebook /feed with nested reactions/comments summary to 25 to prevent 500 timeouts
+        $latestOptions = GraphRequestOptions::make(limit: 25);
         $latestCollection = $graph->edge($connection, 'feed', $latestOptions);
 
         foreach ($latestCollection as $item) {
@@ -283,7 +284,7 @@ final class Synchronizer implements SynchronizerInterface
             }
 
             while ($after !== null && $batchCount < $maxBatches) {
-                $options    = GraphRequestOptions::make(limit: 100, after: $after);
+                $options    = GraphRequestOptions::make(limit: 25, after: $after);
                 $collection = $graph->edge($connection, 'feed', $options);
                 $pageItems  = [];
 
