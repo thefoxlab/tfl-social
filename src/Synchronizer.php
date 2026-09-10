@@ -285,17 +285,18 @@ final class Synchronizer implements SynchronizerInterface
             while ($after !== null && $batchCount < $maxBatches) {
                 $options    = GraphRequestOptions::make(limit: 100, after: $after);
                 $collection = $graph->edge($connection, 'feed', $options);
-
-                $allExist    = true;
-                $pageItems   = [];
+                $pageItems  = [];
 
                 foreach ($collection as $item) {
-                    $normalized = $this->normalizeFacebookFeedItem($connection, $item);
-                    $pageItems[] = $normalized;
-                    $extId = $normalized['post']['external_id'] ?? '';
-                    if (!$this->posts->existsByExternalId((string) $extId)) {
-                        $allExist = false;
-                    }
+                    $pageItems[] = $this->normalizeFacebookFeedItem($connection, $item);
+                }
+
+                if (empty($pageItems)) {
+                    $this->connections->updateCursorMetadata(
+                        $this->connectionId($connection),
+                        ['is_completed' => true, 'cursor_after' => null, 'total_batches' => ((int)($cursor['total_batches'] ?? 0)) + $batchCount]
+                    );
+                    break;
                 }
 
                 $items = array_merge($items, $pageItems);
@@ -304,7 +305,7 @@ final class Synchronizer implements SynchronizerInterface
                 $nextCursor = $collection->pagination()->after();
                 $noMorePages = ($nextCursor === null || $nextCursor === $after);
 
-                if ($noMorePages || $allExist) {
+                if ($noMorePages) {
                     $this->connections->updateCursorMetadata(
                         $this->connectionId($connection),
                         ['is_completed' => true, 'cursor_after' => null, 'total_batches' => ((int)($cursor['total_batches'] ?? 0)) + $batchCount]
@@ -356,17 +357,18 @@ final class Synchronizer implements SynchronizerInterface
             while ($after !== null && $batchCount < $maxBatches) {
                 $options    = GraphRequestOptions::make(limit: 100, after: $after);
                 $collection = $graph->media($connection, $options);
-
-                $allExist  = true;
-                $pageItems = [];
+                $pageItems  = [];
 
                 foreach ($collection as $item) {
-                    $normalized = $this->normalizeInstagramMediaItem($connection, $item);
-                    $pageItems[] = $normalized;
-                    $extId = $normalized['post']['external_id'] ?? '';
-                    if (!$this->posts->existsByExternalId((string) $extId)) {
-                        $allExist = false;
-                    }
+                    $pageItems[] = $this->normalizeInstagramMediaItem($connection, $item);
+                }
+
+                if (empty($pageItems)) {
+                    $this->connections->updateCursorMetadata(
+                        $this->connectionId($connection),
+                        ['is_completed' => true, 'cursor_after' => null, 'total_batches' => ((int)($cursor['total_batches'] ?? 0)) + $batchCount]
+                    );
+                    break;
                 }
 
                 $items = array_merge($items, $pageItems);
@@ -375,7 +377,7 @@ final class Synchronizer implements SynchronizerInterface
                 $nextCursor = $collection->pagination()->after();
                 $noMorePages = ($nextCursor === null || $nextCursor === $after);
 
-                if ($noMorePages || $allExist) {
+                if ($noMorePages) {
                     $this->connections->updateCursorMetadata(
                         $this->connectionId($connection),
                         ['is_completed' => true, 'cursor_after' => null, 'total_batches' => ((int)($cursor['total_batches'] ?? 0)) + $batchCount]
