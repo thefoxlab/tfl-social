@@ -58,6 +58,7 @@ final class ConnectionService
             'permissions' => $permissions === [] ? null : $this->encodeMetadata($permissions),
             'connected_at' => $this->now(),
             'metadata' => $metadata === [] ? null : $this->encodeMetadata($metadata),
+            'status' => STATUS_ACTIVE,
         ];
 
         $existing = $this->connections->findByAccountProviderExternalId($accountId, $provider, $externalId);
