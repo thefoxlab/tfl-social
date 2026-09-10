@@ -18,6 +18,7 @@ class Sync extends Entity implements Arrayable, JsonSerializable
     protected $attributes = [
         'social_sync_id' => null,
         'social_connection_id' => null,
+        'sync_type' => 'channel',
         'status' => null,
         'started_at' => null,
         'finished_at' => null,

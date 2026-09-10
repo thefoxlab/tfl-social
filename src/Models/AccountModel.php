@@ -20,6 +20,9 @@ class AccountModel extends Model
         'status',
         'metadata',
         'hashtag',
+        'public_hashtag',
+        'public_hashtag_id',
+        'public_last_synced_at',
     ];
 
     protected $useTimestamps = true;

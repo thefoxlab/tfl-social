@@ -66,6 +66,34 @@ final class AccountService
         ]);
     }
 
+    /**
+     * @return list<Account>
+     */
+    public function allAccounts(): array
+    {
+        $accounts = [];
+
+        foreach ($this->accounts->findAll() as $account) {
+            $accounts[] = $this->account($account);
+        }
+
+        return $accounts;
+    }
+
+    /**
+     * @return list<Account>
+     */
+    public function activeAccounts(): array
+    {
+        $accounts = [];
+
+        foreach ($this->accounts->findAll(['status' => STATUS_ACTIVE]) as $account) {
+            $accounts[] = $this->account($account);
+        }
+
+        return $accounts;
+    }
+
     private function account(Entity $entity): Account
     {
         if (! $entity instanceof Account) {

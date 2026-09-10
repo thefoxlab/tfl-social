@@ -22,6 +22,7 @@ use TheFoxLab\TflSocial\Providers\Meta\FeatureUnavailableResponse;
 use TheFoxLab\TflSocial\Providers\Meta\GraphItem;
 use TheFoxLab\TflSocial\Providers\Meta\GraphRequestOptions;
 use TheFoxLab\TflSocial\Providers\Meta\GraphResponse;
+use TheFoxLab\TflSocial\Services\AccountService;
 use TheFoxLab\TflSocial\Services\ConnectionService;
 use TheFoxLab\TflSocial\Services\MediaService;
 use TheFoxLab\TflSocial\Services\PostService;
@@ -35,6 +36,8 @@ use function is_int;
 use function is_string;
 use function json_encode;
 use function ltrim;
+use function strtotime;
+use function time;
 use function strtolower;
 use function trim;
 
@@ -52,7 +55,8 @@ final class Synchronizer implements SynchronizerInterface
         private ?ConnectionService $connections = null,
         private ?PostService $posts = null,
         private ?MediaService $media = null,
-        private ?SyncService $syncs = null
+        private ?SyncService $syncs = null,
+        private ?AccountService $accounts = null
     ) {
         $this->config = TflSocial::resolve($this->config);
         $this->client = $client ?? new Client($this->config);
@@ -60,6 +64,7 @@ final class Synchronizer implements SynchronizerInterface
         $this->posts = $posts ?? new PostService();
         $this->media = $media ?? new MediaService();
         $this->syncs = $syncs ?? new SyncService();
+        $this->accounts = $accounts ?? new AccountService();
     }
 
     private readonly ClientInterface $client;
@@ -92,6 +97,8 @@ final class Synchronizer implements SynchronizerInterface
         foreach ($this->connectionsToSynchronize() as $connection) {
             $this->synchronizeConnection($connection);
         }
+
+        $this->syncPublicHashtags();
     }
 
     /**
@@ -800,6 +807,205 @@ final class Synchronizer implements SynchronizerInterface
             return $this->media->refreshExpiredMediaForConnection($connection, $limit);
         } catch (Throwable) {
             return 0;
+        }
+    }
+
+    private function syncPublicHashtags(): void
+    {
+        $accounts = [];
+
+        if ($this->account !== null) {
+            $acc = $this->accounts->getAccount($this->account);
+            if ($acc !== null && ($acc->status ?? STATUS_ACTIVE) === STATUS_ACTIVE) {
+                $accounts = [$acc];
+            }
+        } else {
+            $accounts = $this->accounts->activeAccounts();
+        }
+
+        foreach ($accounts as $account) {
+            $this->syncAccountPublicHashtag($account);
+        }
+    }
+
+    private function syncAccountPublicHashtag(object $account): void
+    {
+        $rawTag = (string) ($account->public_hashtag ?? '');
+        $cleanTag = strtolower(ltrim(trim($rawTag), '#'));
+
+        if ($cleanTag === '') {
+            return;
+        }
+
+        // Throttle to 24 hours (86400 seconds) to comply with Meta 30 unique hashtag limit per 7 days
+        $lastSynced = $account->public_last_synced_at ?? null;
+        if (! empty($lastSynced) && is_string($lastSynced)) {
+            $lastTime = strtotime($lastSynced);
+            if ($lastTime !== false && (time() - $lastTime) < 86400) {
+                return;
+            }
+        }
+
+        $accountId = (int) $account->social_account_id;
+
+        // Find active Instagram connection for this account to make Graph API calls
+        $igConnection = null;
+        foreach ($this->connections->activeConnections($accountId) as $conn) {
+            if ($this->provider($conn) === 'instagram') {
+                $igConnection = $conn;
+                break;
+            }
+        }
+
+        if ($igConnection === null) {
+            return;
+        }
+
+        try {
+            $igConnection = $this->ensureValidToken($igConnection);
+        } catch (Throwable) {
+            return;
+        }
+
+        $graph = new InstagramGraphService($this->config, $this->client);
+
+        // Resolve hashtag ID if missing
+        $hashtagId = (string) ($account->public_hashtag_id ?? '');
+        if ($hashtagId === '') {
+            try {
+                $searchResp = $graph->hashtagSearch($igConnection, $cleanTag);
+                if (! ($searchResp instanceof FeatureUnavailableResponse)) {
+                    $searchData = $searchResp->get('data');
+                    if (is_array($searchData) && ! empty($searchData[0]['id'])) {
+                        $hashtagId = (string) $searchData[0]['id'];
+                        $this->accounts->updateAccount($accountId, [
+                            'public_hashtag_id' => $hashtagId,
+                        ]);
+                    }
+                }
+            } catch (Throwable) {
+                return;
+            }
+        }
+
+        if ($hashtagId === '') {
+            return;
+        }
+
+        // Find or create virtual hashtag connection
+        $hashtagConn = $this->connections->findByAccountProviderExternalId($accountId, 'hashtag', $hashtagId);
+        if ($hashtagConn === null) {
+            try {
+                $hashtagConn = $this->connections->connectProvider(
+                    accountId: $accountId,
+                    provider: 'hashtag',
+                    externalId: $hashtagId,
+                    externalName: '#' . $cleanTag,
+                    metadata: ['hashtag' => $cleanTag, 'hashtag_id' => $hashtagId],
+                    parentConnectionId: $igConnection->social_connection_id
+                );
+            } catch (Throwable) {
+                return;
+            }
+        }
+
+        $hashtagConnId = (int) $hashtagConn->social_connection_id;
+        $sync = $this->syncs->startSync(connectionId: $hashtagConnId, syncType: 'public_hashtag');
+
+        $created = 0;
+        $updated = 0;
+        $failed = 0;
+
+        try {
+            $recentMedia = $graph->recentHashtagMedia($igConnection, $hashtagId);
+
+            if (! ($recentMedia instanceof FeatureUnavailableResponse)) {
+                foreach ($recentMedia as $item) {
+                    try {
+                        $payload = $item->toArray();
+                        $externalId = (string) ($payload['id'] ?? '');
+                        if ($externalId === '') {
+                            continue;
+                        }
+
+                        // Check if post already exists under an own connection (FB or IG)
+                        if ($this->posts->existsByExternalId($externalId)) {
+                            // Already exists as own post - do not duplicate row in DB
+                            continue;
+                        }
+
+                        $type = strtolower($this->nullableString($payload['media_type'] ?? null) ?? 'image');
+                        $caption = $this->nullableString($payload['caption'] ?? null);
+                        $permalink = $this->nullableString($payload['permalink'] ?? null);
+                        $publishedAt = $this->dateTimeString($payload['timestamp'] ?? null);
+
+                        $postData = [
+                            'social_connection_id' => $hashtagConnId,
+                            'provider'             => 'hashtag',
+                            'external_id'          => $externalId,
+                            'parent_external_id'   => null,
+                            'type'                 => $type,
+                            'message'              => $caption,
+                            'permalink'            => $permalink,
+                            'published_at'         => $publishedAt,
+                            'sync_time'            => $this->now(),
+                            'metrics'              => '{}',
+                            'raw_json'             => $this->json($payload),
+                            'status'               => STATUS_ACTIVE,
+                        ];
+
+                        $result = $this->posts->upsertPost($postData);
+
+                        // Sync media assets
+                        $mediaItems = [];
+                        $mediaUrl = $this->nullableString($payload['media_url'] ?? null);
+                        if ($mediaUrl !== null) {
+                            $mediaItems[] = [
+                                'type'          => in_array($type, ['video', 'reels'], true) ? 'video' : 'image',
+                                'url'           => $mediaUrl,
+                                'thumbnail_url' => $this->nullableString($payload['thumbnail_url'] ?? null),
+                                'alt_text'      => $caption,
+                                'sort_order'    => 0,
+                                'metadata'      => $this->json($payload),
+                            ];
+                        }
+
+                        if (! empty($mediaItems)) {
+                            $this->media->syncMedia($result['post']->social_post_id, $mediaItems);
+                        }
+
+                        if ($result['created']) {
+                            $created++;
+                        } else {
+                            $updated++;
+                        }
+                    } catch (Throwable) {
+                        $failed++;
+                    }
+                }
+            }
+
+            $this->accounts->updateAccount($accountId, [
+                'public_last_synced_at' => $this->now(),
+            ]);
+
+            $this->connections->updateLastSyncedAt($hashtagConnId, $this->now());
+
+            $this->syncs->finishSync(
+                $sync->social_sync_id,
+                sprintf('Public hashtag #%s sync completed.', $cleanTag),
+                $created,
+                $updated,
+                $failed
+            );
+        } catch (Throwable $e) {
+            $this->syncs->failSync(
+                $sync->social_sync_id,
+                $e->getMessage(),
+                $created,
+                $updated,
+                $failed + 1
+            );
         }
     }
 }

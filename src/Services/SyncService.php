@@ -17,17 +17,18 @@ final class SyncService
     }
 
     public function startSync(
-        int|string|null $connectionId = null
-        ): Sync
-        {
-            return $this->sync($this->syncs->insert([
-                'social_connection_id' => $connectionId,
-                'status' => Sync::STATUS_RUNNING,
-                'started_at' => date('Y-m-d H:i:s'),
-                'items_created' => 0,
-                'items_updated' => 0,
-                'items_failed' => 0,
-            ]));
+        int|string|null $connectionId = null,
+        string $syncType = 'channel'
+    ): Sync {
+        return $this->sync($this->syncs->insert([
+            'social_connection_id' => $connectionId,
+            'sync_type' => $syncType,
+            'status' => Sync::STATUS_RUNNING,
+            'started_at' => date('Y-m-d H:i:s'),
+            'items_created' => 0,
+            'items_updated' => 0,
+            'items_failed' => 0,
+        ]));
     }
 
     public function finishSync(

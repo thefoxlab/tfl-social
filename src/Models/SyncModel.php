@@ -17,6 +17,7 @@ class SyncModel extends Model
     
     protected $allowedFields = [
         'social_connection_id',
+        'sync_type',
         'status',
         'started_at',
         'finished_at',
