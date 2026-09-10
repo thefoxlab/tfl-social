@@ -20,6 +20,7 @@ use TheFoxLab\TflSocial\Providers\Facebook\OAuth as FacebookOAuth;
 use TheFoxLab\TflSocial\Providers\Instagram\GraphService as InstagramGraphService;
 use TheFoxLab\TflSocial\Providers\Meta\FeatureUnavailableResponse;
 use TheFoxLab\TflSocial\Providers\Meta\GraphItem;
+use TheFoxLab\TflSocial\Providers\Meta\GraphRequestOptions;
 use TheFoxLab\TflSocial\Providers\Meta\GraphResponse;
 use TheFoxLab\TflSocial\Services\ConnectionService;
 use TheFoxLab\TflSocial\Services\MediaService;
