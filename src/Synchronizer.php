@@ -915,6 +915,7 @@ final class Synchronizer implements SynchronizerInterface
         $created = 0;
         $updated = 0;
         $failed = 0;
+        $skippedOwn = 0;
 
         try {
             $recentMedia = $graph->recentHashtagMedia($igConnection, $hashtagId);
@@ -930,7 +931,7 @@ final class Synchronizer implements SynchronizerInterface
 
                         // Check if post already exists under an own connection (FB or IG)
                         if ($this->posts->existsByExternalId($externalId)) {
-                            // Already exists as own post - do not duplicate row in DB
+                            $skippedOwn++;
                             continue;
                         }
 
@@ -991,9 +992,11 @@ final class Synchronizer implements SynchronizerInterface
 
             $this->connections->updateLastSyncedAt($hashtagConnId, $this->now());
 
+            $itemCount = (! ($recentMedia instanceof FeatureUnavailableResponse)) ? count($recentMedia) : 0;
+
             $this->syncs->finishSync(
                 $sync->social_sync_id,
-                sprintf('Public hashtag #%s sync completed.', $cleanTag),
+                sprintf('Public hashtag #%s sync: %d items returned by Meta (%d skipped as duplicates/own).', $cleanTag, $itemCount, $skippedOwn),
                 $created,
                 $updated,
                 $failed
