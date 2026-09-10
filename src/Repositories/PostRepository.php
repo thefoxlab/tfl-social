@@ -21,4 +21,9 @@ final class PostRepository extends AbstractRepository
             'external_id' => $externalId,
         ]);
     }
+
+    public function existsByExternalId(string $externalId): bool
+    {
+        return $this->model->where('external_id', $externalId)->countAllResults() > 0;
+    }
 }
