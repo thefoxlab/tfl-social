@@ -77,6 +77,11 @@ final class PostService
         ];
     }
 
+    public function existsByExternalId(string $externalId): bool
+    {
+        return $this->posts->existsByExternalId($externalId);
+    }
+
     private function post(Entity $entity): Post
     {
         if (! $entity instanceof Post) {

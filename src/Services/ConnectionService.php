@@ -244,6 +244,44 @@ final class ConnectionService
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function getCursorMetadata(Connection $connection): array
+    {
+        try {
+            $meta = $this->decodeMetadata($connection->metadata);
+        } catch (JsonException) {
+            $meta = [];
+        }
+
+        return is_array($meta['historical_sync'] ?? null) ? $meta['historical_sync'] : [];
+    }
+
+    /**
+     * @param array<string, mixed> $cursor
+     */
+    public function updateCursorMetadata(int|string $connectionId, array $cursor): Connection
+    {
+        $connection = $this->getConnection($connectionId);
+
+        if ($connection === null) {
+            throw new RepositoryException(sprintf('Connection [%s] was not found.', (string) $connectionId));
+        }
+
+        try {
+            $meta = $this->decodeMetadata($connection->metadata);
+        } catch (JsonException) {
+            $meta = [];
+        }
+
+        $meta['historical_sync'] = $cursor;
+
+        return $this->connection($this->connections->update($connectionId, [
+            'metadata' => $this->encodeMetadata($meta),
+        ]));
+    }
+
+    /**
      * @param array<string, mixed> $metadata
      *
      * @throws JsonException

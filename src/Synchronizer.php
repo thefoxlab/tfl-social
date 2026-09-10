@@ -255,13 +255,68 @@ final class Synchronizer implements SynchronizerInterface
      */
     private function facebookPosts(Connection $connection): array
     {
-        $graph = new FacebookGraphService($this->config, $this->client);
-        $items = [];
-
+        $graph  = new FacebookGraphService($this->config, $this->client);
+        $items  = [];
         $items[] = $this->normalizeFacebookProfile($connection, $graph->node($connection));
 
-        foreach ($graph->edge($connection, 'feed') as $item) {
+        $cursor = $this->connections->getCursorMetadata($connection);
+        $isHistoryDone = (bool) ($cursor['is_completed'] ?? false);
+
+        // Phase 1: Always fetch the latest page to capture new posts.
+        $latestOptions = GraphRequestOptions::make(limit: 100);
+        $latestCollection = $graph->edge($connection, 'feed', $latestOptions);
+
+        foreach ($latestCollection as $item) {
             $items[] = $this->normalizeFacebookFeedItem($connection, $item);
+        }
+
+        // Phase 2: Historical backfill — resume from stored cursor if not yet complete.
+        if (!$isHistoryDone) {
+            $after      = $cursor['cursor_after'] ?? null;
+            $batchCount = 0;
+            $maxBatches = 5;
+
+            // If no cursor yet, start from where the latest page left off.
+            if ($after === null) {
+                $after = $latestCollection->pagination()->after();
+            }
+
+            while ($after !== null && $batchCount < $maxBatches) {
+                $options    = GraphRequestOptions::make(limit: 100, after: $after);
+                $collection = $graph->edge($connection, 'feed', $options);
+
+                $allExist    = true;
+                $pageItems   = [];
+
+                foreach ($collection as $item) {
+                    $normalized = $this->normalizeFacebookFeedItem($connection, $item);
+                    $pageItems[] = $normalized;
+                    $extId = $normalized['post']['external_id'] ?? '';
+                    if (!$this->posts->existsByExternalId((string) $extId)) {
+                        $allExist = false;
+                    }
+                }
+
+                $items = array_merge($items, $pageItems);
+                $batchCount++;
+
+                $nextCursor = $collection->pagination()->after();
+                $noMorePages = ($nextCursor === null || $nextCursor === $after);
+
+                if ($noMorePages || $allExist) {
+                    $this->connections->updateCursorMetadata(
+                        $this->connectionId($connection),
+                        ['is_completed' => true, 'cursor_after' => null, 'total_batches' => ((int)($cursor['total_batches'] ?? 0)) + $batchCount]
+                    );
+                    break;
+                }
+
+                $after = $nextCursor;
+                $this->connections->updateCursorMetadata(
+                    $this->connectionId($connection),
+                    ['is_completed' => false, 'cursor_after' => $after, 'total_batches' => ((int)($cursor['total_batches'] ?? 0)) + $batchCount]
+                );
+            }
         }
 
         return $items;
@@ -272,13 +327,67 @@ final class Synchronizer implements SynchronizerInterface
      */
     private function instagramPosts(Connection $connection): array
     {
-        $graph = new InstagramGraphService($this->config, $this->client);
-        $items = [];
-
+        $graph  = new InstagramGraphService($this->config, $this->client);
+        $items  = [];
         $items[] = $this->normalizeInstagramProfile($connection, $graph->profile($connection));
 
-        foreach ($graph->media($connection) as $item) {
+        $cursor = $this->connections->getCursorMetadata($connection);
+        $isHistoryDone = (bool) ($cursor['is_completed'] ?? false);
+
+        // Phase 1: Always fetch the latest page to capture new posts.
+        $latestOptions = GraphRequestOptions::make(limit: 100);
+        $latestCollection = $graph->media($connection, $latestOptions);
+
+        foreach ($latestCollection as $item) {
             $items[] = $this->normalizeInstagramMediaItem($connection, $item);
+        }
+
+        // Phase 2: Historical backfill — resume from stored cursor if not yet complete.
+        if (!$isHistoryDone) {
+            $after      = $cursor['cursor_after'] ?? null;
+            $batchCount = 0;
+            $maxBatches = 5;
+
+            if ($after === null) {
+                $after = $latestCollection->pagination()->after();
+            }
+
+            while ($after !== null && $batchCount < $maxBatches) {
+                $options    = GraphRequestOptions::make(limit: 100, after: $after);
+                $collection = $graph->media($connection, $options);
+
+                $allExist  = true;
+                $pageItems = [];
+
+                foreach ($collection as $item) {
+                    $normalized = $this->normalizeInstagramMediaItem($connection, $item);
+                    $pageItems[] = $normalized;
+                    $extId = $normalized['post']['external_id'] ?? '';
+                    if (!$this->posts->existsByExternalId((string) $extId)) {
+                        $allExist = false;
+                    }
+                }
+
+                $items = array_merge($items, $pageItems);
+                $batchCount++;
+
+                $nextCursor = $collection->pagination()->after();
+                $noMorePages = ($nextCursor === null || $nextCursor === $after);
+
+                if ($noMorePages || $allExist) {
+                    $this->connections->updateCursorMetadata(
+                        $this->connectionId($connection),
+                        ['is_completed' => true, 'cursor_after' => null, 'total_batches' => ((int)($cursor['total_batches'] ?? 0)) + $batchCount]
+                    );
+                    break;
+                }
+
+                $after = $nextCursor;
+                $this->connections->updateCursorMetadata(
+                    $this->connectionId($connection),
+                    ['is_completed' => false, 'cursor_after' => $after, 'total_batches' => ((int)($cursor['total_batches'] ?? 0)) + $batchCount]
+                );
+            }
         }
 
         return $items;
