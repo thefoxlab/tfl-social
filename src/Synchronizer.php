@@ -893,7 +893,7 @@ final class Synchronizer implements SynchronizerInterface
         }
 
         // Find or create virtual hashtag connection
-        $hashtagConn = $this->connections->findByAccountProviderExternalId($accountId, 'hashtag', $hashtagId);
+        $hashtagConn = $this->connections->findProviderConnection($accountId, 'hashtag', $hashtagId);
         if ($hashtagConn === null) {
             try {
                 $hashtagConn = $this->connections->connectProvider(
